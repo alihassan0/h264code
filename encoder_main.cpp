@@ -8,7 +8,7 @@
 #include <vector>
 #include <cstdlib>
 
-typedef __uint8_t MyDataSize;
+typedef __int8_t MyDataSize;
 using namespace std;
 typedef unsigned char BYTE;
 typedef struct Block { BYTE data[8][8]; char type; BYTE x; BYTE y; } Block; 
@@ -70,7 +70,7 @@ void writeEncodedMacroblock(vector<int> rle, FILE *output_file)
     }
 }
 
-vector<int> Compute_VLC(BYTE block[8][8])
+vector<int> Compute_VLC(int block[8][8])
 {
     vector<int> rle;
     int zigzag_scaned_values[64];
@@ -116,7 +116,7 @@ vector<int> Compute_VLC(BYTE block[8][8])
 //Use a fixed quantization of 8
 //Input   8x8 DCT-Transformed block
 //Output  8x8 Quantized block
-void Compute_quantization(BYTE inMatrix[8][8], BYTE outMatrix[8][8])
+void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
     int Quant_parameter = 8;
     for (int i = 0; i < 8; i++)
@@ -212,7 +212,7 @@ MV Compute_MV(Block block, BYTE *frame)
 //DCT on 8x8 block
 //Input   8x8 spatial block
 //Output  8x8 DCT-Transformed block
-void Compute_DCT(BYTE input_block[8][8], BYTE output_block[8][8])
+void Compute_DCT(BYTE input_block[8][8], int output_block[8][8])
 {
     BYTE block[64];
     double coeff[64];
@@ -426,12 +426,14 @@ void Encode_Video_File()
 			{
 				if(true)//to mv or not to mv
 				{
+					int outBlock[8][8];
+
 					//DCT
-					Compute_DCT(current_blocks[block_index].data, current_blocks[block_index].data);
+					Compute_DCT(current_blocks[block_index].data, outBlock);
 					//Quantization
-					Compute_quantization(current_blocks[block_index].data, current_blocks[block_index].data);
+					Compute_quantization(outBlock, outBlock);
 					//Zigzag and run length
-					run_length_table = Compute_VLC(current_blocks[block_index].data);
+					run_length_table = Compute_VLC(outBlock);
 					//write coefficient into output file
 					writeEncodedMacroblock(run_length_table, OutputFile);
 				}
