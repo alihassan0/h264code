@@ -185,16 +185,24 @@ int Compute_MV(int block[8][8], char type, BYTE *frame)
 			maxHeight /= 2;
 		break;
 	}
-
+	int minValue = 65535, minI = 0, minJ = 0;
+	
 	for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 8)
 	{
 		for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 8)
 		{
-			int sad = Compute_SAD(block,get8x8Block(frame,maxWidth,macroblock_Xpos,macroblock_Ypos).data);
+			Block frameBlock = get8x8Block(frame,maxWidth,macroblock_Xpos,macroblock_Ypos);
+			int sad = Compute_SAD(block,frameBlock.data);
+			if(sad < minValue)
+			{
+				minI = macroblock_Xpos;
+				minJ = macroblock_Ypos;
+				minValue = sad;
+			}
 			cout << "SAD value for " << sad<< endl;
 		}
 	}
-	return 0;
+	return minValue;
 }
 
 //DCT on 8x8 block
@@ -399,7 +407,7 @@ void Encode_Video_File()
 			//loop accross all blocks in the macroblock
 			for (int block_index = 0; block_index < 6; block_index++)
 			{
-				if(isIframe)//to mv or not to mv
+				if(!isIframe)//to mv or not to mv
 				{
 					//DCT
 					Compute_DCT(current_blocks[block_index], current_blocks[block_index]);
@@ -409,7 +417,7 @@ void Encode_Video_File()
 					run_length_table = Compute_VLC(current_blocks[block_index]);
 					//write coefficient into output file
 					writeEncodedMacroblock(run_length_table, OutputFile);
-					isIframe = 0;
+					// isIframe = 0;
 				}
 				else
 				{
