@@ -259,7 +259,7 @@ void Encode_Video_File()
 
 	FILE *OutputFile;
 
-	if ((OutputFile = fopen("encoded_coastguard_qcif.264", "wb")) == NULL)
+	if ((OutputFile = fopen("output/encoded_coastguard_qcif.264", "wb")) == NULL)
 	{
 		cout << "Could not open output file" << endl;
 		exit(-1);
@@ -531,7 +531,7 @@ void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 //Assume encoded file is QCIF resolution (176 x 144)
 void Decode_Video_File() {
 	FILE* file;
-	if ((file = fopen("encoded_coastguard_qcif.264", "rb")) == NULL)
+	if ((file = fopen("output/encoded_coastguard_qcif.264", "rb")) == NULL)
 	{
 		cout << "Could not open specified file" << endl;
 		return;
@@ -543,7 +543,7 @@ void Decode_Video_File() {
 
 	//open output file
 	FILE* output_file;
-	if ((output_file = fopen("decoded_coastguard_qcif.yuv", "wb")) == NULL)
+	if ((output_file = fopen("output/decoded_coastguard_qcif.yuv", "wb")) == NULL)
 	{
 		cout << "Could not open specified file" << endl;
 		return;
