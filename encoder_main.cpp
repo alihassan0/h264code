@@ -117,11 +117,40 @@ void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
     int Quant_parameter = 8;
     for (int i = 0; i < 8; i++)
     {
-	for (int j = 0; j < 8; j++)
-	{
-	    outMatrix[i][j] = inMatrix[i][j] / Quant_parameter;
-	}
+		for (int j = 0; j < 8; j++)
+		{
+			outMatrix[i][j] = inMatrix[i][j] / Quant_parameter;
+		}
     }
+}
+
+//Compute_SAD
+// Quantize an input block
+//Use a fixed quantization of 8
+//Input   8x8 DCT-Transformed block
+//Output  8x8 Quantized block
+int Compute_SAD(int block1[8][8], int block2[8][8])
+{
+	// for (macroblock_Ypos = 0; macroblock_Ypos < Y_frame_height; macroblock_Ypos += 16)
+	// {
+	//     for (macroblock_Xpos = 0; macroblock_Xpos < Y_frame_width; macroblock_Xpos += 16)
+	//     {
+
+	// 	}
+	// }
+
+    int sadValue = 0;
+    for (int i = 0; i < 8; i++)
+    {
+		for (int j = 0; j < 8; j++)
+		{
+			__uint8_t value1 = block1[i][j];
+			__uint8_t value2 = block2[i][j];
+
+			sadValue += abs(value1 - value2);
+		}
+    }
+	return sadValue;
 }
 
 //DCT on 8x8 block
@@ -276,6 +305,7 @@ void Encode_Video_File()
 
     // Allocate space in the buffer for a single frame
     frameBuffer = new BYTE[framesize];
+	BYTE *lastIFrameBuffer = new BYTE[framesize]; 
     BYTE *uFrameStart, *vFrameStart;
     uFrameStart = frameBuffer + y_buffer_size_bytes;
     vFrameStart = uFrameStart + u_buffer_size_bytes;
@@ -287,48 +317,62 @@ void Encode_Video_File()
     int current_blocks[6][8][8];
     vector<int> run_length_table;
 
+	int isIframe = 1;
     //start encoding loop
     for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
     {
 	cout << "Encoding frame number: " << frame_num << endl;
 	//read a frame from input file into the frameBuffer
 	fread(frameBuffer, framesize, 1, inputFileptr);
-
+	if(isIframe)
+		fread(lastIFrameBuffer, framesize, 1, inputFileptr);
+		
 	//loop accross blocks
 	for (macroblock_Ypos = 0; macroblock_Ypos < Y_frame_height; macroblock_Ypos += 16)
 	    for (macroblock_Xpos = 0; macroblock_Xpos < Y_frame_width; macroblock_Xpos += 16)
 	    {
-		//load individual blocks into current_blocks
-		for (int block_y = 0; block_y < 8; block_y++)
-		    for (int block_x = 0; block_x < 8; block_x++)
-		    {
-			//Y block 0
-			current_blocks[0][block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width);
-			//Y block 1
-			current_blocks[1][block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width);
-			//Y block 2
-			current_blocks[2][block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
-			//Y block 3
-			current_blocks[3][block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
-			//u block
-			current_blocks[4][block_x][block_y] = *(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
-			//v block
-			current_blocks[5][block_x][block_y] = *(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
-		    }
+			//load individual blocks into current_blocks
+			for (int block_y = 0; block_y < 8; block_y++)
+				for (int block_x = 0; block_x < 8; block_x++)
+				{
+				//Y block 0
+				current_blocks[0][block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width);
+				//Y block 1
+				current_blocks[1][block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width);
+				//Y block 2
+				current_blocks[2][block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
+				//Y block 3
+				current_blocks[3][block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
+				//u block
+				current_blocks[4][block_x][block_y] = *(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
+				//v block
+				current_blocks[5][block_x][block_y] = *(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
+				}
+			//macroblock processing
+			//loop accross all blocks in the macroblock
+			for (int block_index = 0; block_index < 6; block_index++)
+			{
+				if(isIframe)//to mv or not to mv
+				{
+					//DCT
+					Compute_DCT(current_blocks[block_index], current_blocks[block_index]);
+					//Quantization
+					Compute_quantization(current_blocks[block_index], current_blocks[block_index]);
+					//Zigzag and run length
+					run_length_table = Compute_VLC(current_blocks[block_index]);
+					//write coefficient into output file
+					writeEncodedMacroblock(run_length_table, OutputFile);
+					isIframe = 0;
+				}
+				else
+				{
+					int sadValue = Compute_SAD(current_blocks[block_index],current_blocks[0]);
+					// cout << "SAD value for " << block_index << "in" << macroblock_Xpos<< macroblock_Ypos <<"is" << sadValue<< endl;
+	
+					// computeMV_Y(lastIFrameBuffer, framesize)
+				}
+			}
 
-		//macroblock processing
-		//loop accross all blocks in the macroblock
-		for (int block_index = 0; block_index < 6; block_index++)
-		{
-		    //DCT
-		    Compute_DCT(current_blocks[block_index], current_blocks[block_index]);
-		    //Quantization
-		    Compute_quantization(current_blocks[block_index], current_blocks[block_index]);
-		    //Zigzag and run length
-		    run_length_table = Compute_VLC(current_blocks[block_index]);
-		    //write coefficient into output file
-		    writeEncodedMacroblock(run_length_table, OutputFile);
-		}
 	    } //end macroblock loop
 
     } //end frame loop
@@ -655,7 +699,7 @@ int main(int argc, char *argv[])
     cout << "File encoding completed, press a key to continue";
     cin.get();
 
-    Decode_Video_File();
-    cout << "File decoding completed, press a key to exit";
-    cin.get();
+    // Decode_Video_File();
+    // cout << "File decoding completed, press a key to exit";
+    // cin.get();
 }
