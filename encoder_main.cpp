@@ -8,9 +8,11 @@
 #include <vector>
 #include <cstdlib>
 
-typedef __int8_t MyDataSize;
+typedef __uint8_t MyDataSize;
 using namespace std;
 typedef unsigned char BYTE;
+typedef struct Block { BYTE data[8][8]; } Block; 
+
 
 // Get the size of a file
 #define mnint(a) ((a) < 0 ? (int)(a - 0.5) : (int)(a + 0.5))
@@ -125,33 +127,67 @@ void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
 }
 
 //Compute_SAD
-// Quantize an input block
-//Use a fixed quantization of 8
-//Input   8x8 DCT-Transformed block
-//Output  8x8 Quantized block
-int Compute_SAD(int block1[8][8], int block2[8][8])
+// computes sad value between two blocks
+//Input   8x8 block1
+//Output  8x8 block2
+//return  int sadValue
+int Compute_SAD(int block1[8][8], BYTE block2[8][8])
 {
-	// for (macroblock_Ypos = 0; macroblock_Ypos < Y_frame_height; macroblock_Ypos += 16)
-	// {
-	//     for (macroblock_Xpos = 0; macroblock_Xpos < Y_frame_width; macroblock_Xpos += 16)
-	//     {
-
-	// 	}
-	// }
-
     int sadValue = 0;
     for (int i = 0; i < 8; i++)
     {
 		for (int j = 0; j < 8; j++)
 		{
-			__uint8_t value1 = block1[i][j];
-			__uint8_t value2 = block2[i][j];
+			BYTE value1 = block1[i][j];
+			BYTE value2 = block2[i][j];
 
 			sadValue += abs(value1 - value2);
 		}
     }
 	return sadValue;
 }
+
+Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
+{
+	Block block;
+	for (int j = 0; j < 8; j++)
+    {
+    	for (int i = 0; i < 8; i++)
+		{
+			block.data[i][j] = *(frame + (startI + i) + (startJ+j) * frameWidth);
+		}
+    }
+	return block;
+}
+
+// Compute_MV
+// computes motionVector
+// Input   8x8 block [Y/U/V]
+// Output  8x8 Iframe[YFrame,UFrame,VFrame]
+// int Compute_MV(int block[8][8], int frame[11][9], char blockType)
+// {
+// 	int tobeTestedBlock[8][8];
+// 	int startIndex = 0;
+// 	int endIndex = 0;
+// 	switch (blockType)
+// 	{
+// 		case 'y':
+
+// 	default:
+// 		break;
+// 	}
+    
+// 	int sadValue = 0;
+//     for (int i = 0; i < frameWidthInBlocks; i++)
+//     {
+// 		for (int j = 0; j < frameHeightInBlocks; j++)
+// 		{
+
+// 			Compute_SAD(block, )
+// 		}
+//     }
+// 	return sadValue;
+// }
 
 //DCT on 8x8 block
 //Input   8x8 spatial block
@@ -325,7 +361,8 @@ void Encode_Video_File()
 	//read a frame from input file into the frameBuffer
 	fread(frameBuffer, framesize, 1, inputFileptr);
 	if(isIframe)
-		fread(lastIFrameBuffer, framesize, 1, inputFileptr);
+		copy(frameBuffer, frameBuffer+framesize, lastIFrameBuffer);
+		// std::copy(std::begin(frameBuffer), std::end(frameBuffer), std::begin(lastIFrameBuffer));
 		
 	//loop accross blocks
 	for (macroblock_Ypos = 0; macroblock_Ypos < Y_frame_height; macroblock_Ypos += 16)
@@ -352,7 +389,7 @@ void Encode_Video_File()
 			//loop accross all blocks in the macroblock
 			for (int block_index = 0; block_index < 6; block_index++)
 			{
-				if(isIframe)//to mv or not to mv
+				if(!isIframe)//to mv or not to mv
 				{
 					//DCT
 					Compute_DCT(current_blocks[block_index], current_blocks[block_index]);
@@ -366,8 +403,9 @@ void Encode_Video_File()
 				}
 				else
 				{
-					int sadValue = Compute_SAD(current_blocks[block_index],current_blocks[0]);
-					// cout << "SAD value for " << block_index << "in" << macroblock_Xpos<< macroblock_Ypos <<"is" << sadValue<< endl;
+					int sadValue = Compute_SAD(current_blocks[block_index],get8x8Block(frameBuffer,Y_frame_width,0,0).data);
+					// get8x8Block(frameBuffer,Y_frame_width,0,0);
+					cout << "SAD value for " << block_index << "in" << macroblock_Xpos<< macroblock_Ypos <<"is" << sadValue<< endl;
 	
 					// computeMV_Y(lastIFrameBuffer, framesize)
 				}
