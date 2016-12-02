@@ -164,30 +164,38 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
 // computes motionVector
 // Input   8x8 block [Y/U/V]
 // Output  8x8 Iframe[YFrame,UFrame,VFrame]
-// int Compute_MV(int block[8][8], int frame[11][9], char blockType)
-// {
-// 	int tobeTestedBlock[8][8];
-// 	int startIndex = 0;
-// 	int endIndex = 0;
-// 	switch (blockType)
-// 	{
-// 		case 'y':
+int Compute_MV(int block[8][8], char type, BYTE *frame)
+{
+	int offset;
+	int maxWidth = Y_frame_width;
+	int maxHeight= Y_frame_height;
+	switch (type)
+	{
+		case 'y':
+			offset = 0;
+		break;
 
-// 	default:
-// 		break;
-// 	}
-    
-// 	int sadValue = 0;
-//     for (int i = 0; i < frameWidthInBlocks; i++)
-//     {
-// 		for (int j = 0; j < frameHeightInBlocks; j++)
-// 		{
+		case 'u':
+			offset = (Y_frame_width * Y_frame_height) ;
+			maxWidth /= 2;
+		break;
+		
+		case 'v':
+			offset = (Y_frame_width * Y_frame_height)*(5/4) ;
+			maxHeight /= 2;
+		break;
+	}
 
-// 			Compute_SAD(block, )
-// 		}
-//     }
-// 	return sadValue;
-// }
+	for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 8)
+	{
+		for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 8)
+		{
+			int sad = Compute_SAD(block,get8x8Block(frame,maxWidth,macroblock_Xpos,macroblock_Ypos).data);
+			cout << "SAD value for " << sad<< endl;
+		}
+	}
+	return 0;
+}
 
 //DCT on 8x8 block
 //Input   8x8 spatial block
@@ -353,6 +361,8 @@ void Encode_Video_File()
     int current_blocks[6][8][8];
     vector<int> run_length_table;
 
+	char blockTypes[6] = {'y','y','y','y','u','v'};
+
 	int isIframe = 1;
     //start encoding loop
     for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
@@ -389,7 +399,7 @@ void Encode_Video_File()
 			//loop accross all blocks in the macroblock
 			for (int block_index = 0; block_index < 6; block_index++)
 			{
-				if(!isIframe)//to mv or not to mv
+				if(isIframe)//to mv or not to mv
 				{
 					//DCT
 					Compute_DCT(current_blocks[block_index], current_blocks[block_index]);
@@ -403,11 +413,7 @@ void Encode_Video_File()
 				}
 				else
 				{
-					int sadValue = Compute_SAD(current_blocks[block_index],get8x8Block(frameBuffer,Y_frame_width,0,0).data);
-					// get8x8Block(frameBuffer,Y_frame_width,0,0);
-					cout << "SAD value for " << block_index << "in" << macroblock_Xpos<< macroblock_Ypos <<"is" << sadValue<< endl;
-	
-					// computeMV_Y(lastIFrameBuffer, framesize)
+					Compute_MV(current_blocks[block_index], blockTypes[block_index],frameBuffer);
 				}
 			}
 
