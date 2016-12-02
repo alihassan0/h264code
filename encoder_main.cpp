@@ -424,7 +424,7 @@ void Encode_Video_File()
 			//loop accross all blocks in the macroblock
 			for (int block_index = 0; block_index < 6; block_index++)
 			{
-				if(!isIframe)//to mv or not to mv
+				if(true)//to mv or not to mv
 				{
 					//DCT
 					Compute_DCT(current_blocks[block_index].data, current_blocks[block_index].data);
@@ -434,7 +434,6 @@ void Encode_Video_File()
 					run_length_table = Compute_VLC(current_blocks[block_index].data);
 					//write coefficient into output file
 					writeEncodedMacroblock(run_length_table, OutputFile);
-					// isIframe = 0;
 				}
 				else
 				{
@@ -443,6 +442,7 @@ void Encode_Video_File()
 					cout << (int)res.x << ","<<(int)res.y << endl;
 				}
 			}
+			isIframe = 0;
 
 	    } //end macroblock loop
 
@@ -765,12 +765,11 @@ void Decode_Video_File()
 //decode encoded.264 into decoded,yuv
 int main(int argc, char *argv[])
 {
-	int x= 5;
     Encode_Video_File();
     cout << "File encoding completed, press a key to continue";
     cin.get();
 
-    // Decode_Video_File();
-    // cout << "File decoding completed, press a key to exit";
-    // cin.get();
+    Decode_Video_File();
+    cout << "File decoding completed, press a key to exit";
+    cin.get();
 }
