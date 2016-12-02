@@ -13,6 +13,8 @@ using namespace std;
 typedef unsigned char BYTE;
 typedef struct Block { BYTE data[8][8]; char type; BYTE x; BYTE y; } Block; 
 
+typedef struct MV { BYTE x; BYTE y; } MV; 
+
 
 // Get the size of a file
 #define mnint(a) ((a) < 0 ? (int)(a - 0.5) : (int)(a + 0.5))
@@ -164,7 +166,7 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
 // computes motionVector
 // Input   8x8 block [Y/U/V]
 // Output  8x8 Iframe[YFrame,UFrame,VFrame]
-int Compute_MV(Block block, BYTE *frame)
+MV Compute_MV(Block block, BYTE *frame)
 {
 	int offset;
 	int maxWidth = Y_frame_width;
@@ -185,7 +187,8 @@ int Compute_MV(Block block, BYTE *frame)
 			maxHeight /= 2;
 		break;
 	}
-	int minValue = 65535, minI = 0, minJ = 0;
+	int minValue = 65535;
+	BYTE minI = 0, minJ = 0;
 	
 	for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 8)
 	{
@@ -202,7 +205,8 @@ int Compute_MV(Block block, BYTE *frame)
 			cout << "SAD value for " << sad<< endl;
 		}
 	}
-	return minValue;
+	MV mv = { (minI-block.x)/8, (minJ-block.y)/8 };
+	return mv;
 }
 
 //DCT on 8x8 block
@@ -435,7 +439,8 @@ void Encode_Video_File()
 				else
 				{
 					current_blocks[block_index].type = blockTypes[block_index];
-					Compute_MV(current_blocks[block_index],frameBuffer);
+					MV res = Compute_MV(current_blocks[block_index],frameBuffer);
+					cout << (int)res.x << ","<<(int)res.y << endl;
 				}
 			}
 
