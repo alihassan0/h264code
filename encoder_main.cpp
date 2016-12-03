@@ -239,7 +239,7 @@ void Compute_DCT(BYTE input_block[8][8], int output_block[8][8])
     int j1, i, j, k;
     vector<double> b(8);
     vector<double> b1(8);
-    vector<vector<double>> d(8, vector<double>(8));
+    vector<vector<double> > d(8, vector<double>(8));
     double f0 = .7071068;
     double f1 = .4903926;
     double f2 = .4619398;
