@@ -773,15 +773,52 @@ void Decode_Video_File()
 
 	} //frame loop completed
 	
-	// BYTE *yuv_frameBuffer = new BYTE[framesize];
-	// for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
-	// {
-
-	// }
+	fwrite(yuv_frameBuffer, framesize, 1, output_file);
+	frame_num++;		
+	
+	BYTE *new_yuv_frameBuffer = new BYTE[framesize];
+	int offsetY = 0;
+	int offsetU = 0;
+	int offsetV = 0;
 	for (int32_t i = 0; i < 300; i++)
 	{
-		fwrite(yuv_frameBuffer, framesize, 1, output_file);
-		frame_num++;		
+		for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
+		{
+			macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
+			macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
+			for (int block_y = 0; block_y < 8; block_y++)
+			{
+				for (int block_x = 0; block_x < 8; block_x++)
+				{
+					//Y block 0
+					offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width;
+					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+ offsetY );
+					
+					//Y block 1
+					offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width;
+					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+ offsetY );
+					
+					//Y block 2
+					offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
+					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+ offsetY );
+					
+					//Y block 3
+					offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
+					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+ offsetY );
+					
+					//u block
+					offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2;
+					*(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetU) ;
+					
+					//v block
+					offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2;
+					*(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetV );
+				}
+			}
+			// (BYTE)(yuv_frameBuffer[macroblock_number]
+			// new_yuv_frameBuffer[macroblock_number] = *1+(1/i));
+		}
+		fwrite(new_yuv_frameBuffer, framesize, 1, output_file);
 	}
 
     cout << "Decoding completed: total number of decoded frames is: " << frame_num << endl;
