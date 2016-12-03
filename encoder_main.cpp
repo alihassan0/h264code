@@ -669,6 +669,77 @@ void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 }
 
 //Assume encoded file is QCIF resolution (176 x 144)
+BYTE * Decode_Video_Frame(MyDataSize *fileBuffer, int frameStart)
+{
+	//Set Y,U, and V frame sizes
+    y_buffer_size_bytes = Y_frame_width * Y_frame_height;
+    u_buffer_size_bytes = (Y_frame_width * Y_frame_height) / 4;
+    v_buffer_size_bytes = (Y_frame_width * Y_frame_height) / 4;
+    //Total YUV frame size
+    framesize = y_buffer_size_bytes + u_buffer_size_bytes + v_buffer_size_bytes;
+
+    BYTE *yuv_frameBuffer; // Pointer to current frame buffer
+    yuv_frameBuffer = new BYTE[framesize];
+    BYTE *uFrameStart, *vFrameStart;
+    uFrameStart = yuv_frameBuffer + y_buffer_size_bytes;
+    vFrameStart = uFrameStart + u_buffer_size_bytes;
+
+	int number_macroblocks_per_frame = Y_frame_width / 16 * Y_frame_height / 16;
+	int num_macroblock_per_row = Y_frame_width / 16;
+
+	int macroblock_Xpos, macroblock_Ypos, block_num, number_block_coefficients;
+	int coefficient_index = frameStart;
+	int current_blocks[6][8][8];
+	vector<int> inputBlock;
+
+	for (int macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
+	{
+		macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
+		macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
+
+		cout << "macroblock#: " << macroblock_number << " xPos,yPos: " << macroblock_Xpos << "," << macroblock_Ypos << endl;
+		//macroblock loop: loop accross all blocks for a single macroblock
+		for (block_num = 0; block_num < 6; block_num++)
+		{
+		//RLE sequence for each block
+		inputBlock.clear();
+		number_block_coefficients = fileBuffer[coefficient_index];
+		coefficient_index++; //advance index to point to next coefficient in the fileBuffer
+		cout << "reading block # " << block_num << " number of coefficients is: " << number_block_coefficients << endl;
+		for (int j = 0; j < number_block_coefficients; j++)
+		{
+			inputBlock.push_back(fileBuffer[coefficient_index + j]);
+		}
+		Compute_inverseZigzag(inputBlock, number_block_coefficients, current_blocks[block_num]);
+		Compute_Inverse_quantization(current_blocks[block_num], current_blocks[block_num]);
+		Compute_idct(current_blocks[block_num], current_blocks[block_num]);
+		coefficient_index += number_block_coefficients;
+		} //macroblock loop
+
+		//copy macroblock into frame buffer
+		//load individual blocks into current_blocks
+		//might need clipping here
+		for (int block_y = 0; block_y < 8; block_y++)
+		for (int block_x = 0; block_x < 8; block_x++)
+		{
+			//Y block 0
+			*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
+			//Y block 1
+			*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
+			//Y block 2
+			*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
+			//Y block 3
+			*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
+			//u block
+			*(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
+			//v block
+			*(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
+		}
+
+	}
+	return yuv_frameBuffer;
+}
+//Assume encoded file is QCIF resolution (176 x 144)
 void Decode_Video_File()
 {
     FILE *file;
@@ -732,52 +803,9 @@ void Decode_Video_File()
 	
 	cout << "decoding frame I " << frame_num << endl;
 	//frame loop: loop accross macroblocks in the whole QCIF frame
-	for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
-	{
+	yuv_frameBuffer = Decode_Video_Frame(fileBuffer,0);
 
-		macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
-		macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
-		cout << "macroblock#: " << macroblock_number << " xPos,yPos: " << macroblock_Xpos << "," << macroblock_Ypos << endl;
-		//macroblock loop: loop accross all blocks for a single macroblock
-		for (block_num = 0; block_num < 6; block_num++)
-		{
-		//RLE sequence for each block
-		inputBlock.clear();
-		number_block_coefficients = fileBuffer[coefficient_index];
-		coefficient_index++; //advance index to point to next coefficient in the fileBuffer
-		cout << "reading block # " << block_num << " number of coefficients is: " << number_block_coefficients << endl;
-		for (int j = 0; j < number_block_coefficients; j++)
-		{
-			inputBlock.push_back(fileBuffer[coefficient_index + j]);
-		}
-		Compute_inverseZigzag(inputBlock, number_block_coefficients, current_blocks[block_num]);
-		Compute_Inverse_quantization(current_blocks[block_num], current_blocks[block_num]);
-		Compute_idct(current_blocks[block_num], current_blocks[block_num]);
-		coefficient_index += number_block_coefficients;
-		} //macroblock loop
 
-		//copy macroblock into frame buffer
-		//load individual blocks into current_blocks
-		//might need clipping here
-		for (int block_y = 0; block_y < 8; block_y++)
-		for (int block_x = 0; block_x < 8; block_x++)
-		{
-			//Y block 0
-			*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
-			//Y block 1
-			*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
-			//Y block 2
-			*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
-			//Y block 3
-			*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
-			//u block
-			*(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
-			//v block
-			*(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
-		}
-
-	} //frame loop completed
-	
 	fwrite(yuv_frameBuffer, framesize, 1, output_file);
 	frame_num++;		
 	
