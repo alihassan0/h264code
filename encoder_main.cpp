@@ -79,6 +79,21 @@ void writeEncodedMacroblock(vector<int> rle, FILE *output_file)
     }
 }
 
+void writeMotionVector(MV mv,FILE *output_file)
+{
+    MyDataSize output_value;
+    
+	output_value = (MyDataSize)mv.x;
+	//writing the value of mv.x
+	fwrite(&output_value, sizeof(MyDataSize), 1, output_file);
+
+    output_value = (MyDataSize)mv.y;
+	//writing the value of mv.y
+	fwrite(&output_value, sizeof(MyDataSize), 1, output_file);
+
+    
+}
+
 vector<int> Compute_VLC(int block[8][8])
 {
     vector<int> rle;
@@ -211,7 +226,6 @@ MV Compute_MV(Block block, BYTE *frame)
 		minJ = macroblock_Ypos;
 		minValue = sad;
 	    }
-	    cout << "SAD value for " << sad << endl;
 	}
     }
     MV mv = {(minI - block.x) / 8, (minJ - block.y) / 8};
@@ -434,22 +448,23 @@ void Encode_Video_File()
 		{
 		    if (true) //to mv or not to mv
 		    {
-			int outBlock[8][8];
+				int outBlock[8][8];
 
-			//DCT
-			Compute_DCT(current_blocks[block_index].data, outBlock);
-			//Quantization
-			Compute_quantization(outBlock, outBlock);
-			//Zigzag and run length
-			run_length_table = Compute_VLC(outBlock);
-			//write coefficient into output file
-			writeEncodedMacroblock(run_length_table, OutputFile);
+				//DCT
+				Compute_DCT(current_blocks[block_index].data, outBlock);
+				//Quantization
+				Compute_quantization(outBlock, outBlock);
+				//Zigzag and run length
+				run_length_table = Compute_VLC(outBlock);
+				//write coefficient into output file
+				writeEncodedMacroblock(run_length_table, OutputFile);
 		    }
 		    else
 		    {
-			current_blocks[block_index].type = blockTypes[block_index];
-			MV res = Compute_MV(current_blocks[block_index], frameBuffer);
-			cout << (int)res.x << "," << (int)res.y << endl;
+				current_blocks[block_index].type = blockTypes[block_index];
+				MV res = Compute_MV(current_blocks[block_index], frameBuffer);
+				cout << (int)res.x << "," << (int)res.y << endl;
+				writeMotionVector(res,OutputFile);
 		    }
 		}
 		isIframe = 0;
@@ -666,12 +681,12 @@ void Decode_Video_File()
     FILE *output_file;
     if ((output_file = fopen("output/decoded_coastguard_qcif.yuv", "wb")) == NULL)
     {
-	cout << "Could not open specified file" << endl;
-	return;
+		cout << "Could not open specified file" << endl;
+		return;
     }
     else
     {
-	cout << "File opened successfully" << endl;
+		cout << "File opened successfully" << endl;
     }
 
     long fileSize = getFileSize(file);
@@ -708,19 +723,19 @@ void Decode_Video_File()
     coefficient_index = 0;
     int frame_num = 0;
     int num_macroblock_per_row = Y_frame_width / 16;
-    while (coefficient_index < total_num_encoded_coefficients) //loop accross the whole input file
-    {
-	cout << "decoding frame number " << frame_num << endl;
+
+	
+	cout << "decoding frame I " << frame_num << endl;
 	//frame loop: loop accross macroblocks in the whole QCIF frame
 	for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
 	{
 
-	    macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
-	    macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
-	    cout << "macroblock#: " << macroblock_number << " xPos,yPos: " << macroblock_Xpos << "," << macroblock_Ypos << endl;
-	    //macroblock loop: loop accross all blocks for a single macroblock
-	    for (block_num = 0; block_num < 6; block_num++)
-	    {
+		macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
+		macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
+		cout << "macroblock#: " << macroblock_number << " xPos,yPos: " << macroblock_Xpos << "," << macroblock_Ypos << endl;
+		//macroblock loop: loop accross all blocks for a single macroblock
+		for (block_num = 0; block_num < 6; block_num++)
+		{
 		//RLE sequence for each block
 		inputBlock.clear();
 		number_block_coefficients = fileBuffer[coefficient_index];
@@ -728,40 +743,46 @@ void Decode_Video_File()
 		cout << "reading block # " << block_num << " number of coefficients is: " << number_block_coefficients << endl;
 		for (int j = 0; j < number_block_coefficients; j++)
 		{
-		    inputBlock.push_back(fileBuffer[coefficient_index + j]);
+			inputBlock.push_back(fileBuffer[coefficient_index + j]);
 		}
 		Compute_inverseZigzag(inputBlock, number_block_coefficients, current_blocks[block_num]);
 		Compute_Inverse_quantization(current_blocks[block_num], current_blocks[block_num]);
 		Compute_idct(current_blocks[block_num], current_blocks[block_num]);
 		coefficient_index += number_block_coefficients;
-	    } //macroblock loop
+		} //macroblock loop
 
-	    //copy macroblock into frame buffer
-	    //load individual blocks into current_blocks
-	    //might need clipping here
-	    for (int block_y = 0; block_y < 8; block_y++)
+		//copy macroblock into frame buffer
+		//load individual blocks into current_blocks
+		//might need clipping here
+		for (int block_y = 0; block_y < 8; block_y++)
 		for (int block_x = 0; block_x < 8; block_x++)
 		{
-		    //Y block 0
-		    *(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
-		    //Y block 1
-		    *(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
-		    //Y block 2
-		    *(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
-		    //Y block 3
-		    *(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
-		    //u block
-		    *(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
-		    //v block
-		    *(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
+			//Y block 0
+			*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
+			//Y block 1
+			*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
+			//Y block 2
+			*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
+			//Y block 3
+			*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
+			//u block
+			*(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
+			//v block
+			*(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
 		}
 
 	} //frame loop completed
+	
+	// BYTE *yuv_frameBuffer = new BYTE[framesize];
+	// for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
+	// {
 
-	//store frame into output file
-	fwrite(yuv_frameBuffer, framesize, 1, output_file);
-	frame_num++;
-    }
+	// }
+	for (int32_t i = 0; i < 300; i++)
+	{
+		fwrite(yuv_frameBuffer, framesize, 1, output_file);
+		frame_num++;		
+	}
 
     cout << "Decoding completed: total number of decoded frames is: " << frame_num << endl;
     fclose(output_file);
