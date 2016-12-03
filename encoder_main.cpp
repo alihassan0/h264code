@@ -461,6 +461,8 @@ void Encode_Video_File()
 				run_length_table = Compute_VLC(outBlock);
 				//write coefficient into output file
 				writeEncodedMacroblock(run_length_table, OutputFile);
+
+
 		    }
 		    else
 		    {
@@ -806,6 +808,7 @@ void Decode_Video_File()
 					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
 					offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width;
 					offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
+					// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					
 					//Y block 1
@@ -813,6 +816,7 @@ void Decode_Video_File()
 					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
 					offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width;
 					offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
+					// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					
 					//Y block 2
@@ -820,6 +824,7 @@ void Decode_Video_File()
 					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
 					offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
 					offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
+					// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					
 					//Y block 3
@@ -827,21 +832,24 @@ void Decode_Video_File()
 					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
 					offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
 					offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
+					// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					
 					//u block
 					mvX = fileBuffer[mvIndex+8];mvY = fileBuffer[mvIndex+9];
 					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-					offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2;
-					offsetUMV = y_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 + mvY*8 + block_y) * Y_frame_width / 2;
-					*(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetU );
+					offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
+					offsetUMV = y_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 + mvY*8 + block_y) * (Y_frame_width / 2);
+					// *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
+					*(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
 					
 					//v block
 					mvX = fileBuffer[mvIndex+10];mvY = fileBuffer[mvIndex+11];
 					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-					offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2;
-					offsetVMV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 +  mvY*8 +block_y) * Y_frame_width / 2;
-					*(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetV );
+					offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
+					offsetVMV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 +  mvY*8 +block_y) * (Y_frame_width / 2);
+					// *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
+					*(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
 				}
 			}
 			mvIndex+= 12;
@@ -863,9 +871,9 @@ void Decode_Video_File()
 //decode encoded.264 into decoded,yuv
 int main(int argc, char *argv[])
 {
-    Encode_Video_File();
-    cout << "File encoding completed, press a key to continue";
-    cin.get();
+    // Encode_Video_File();
+    // cout << "File encoding completed, press a key to continue";
+    // cin.get();
 
     Decode_Video_File();
     cout << "File decoding completed, press a key to exit";
