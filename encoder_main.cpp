@@ -186,6 +186,17 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
     return block;
 }
 
+void set8x8Block(int block[8][8], BYTE *frame, int frameWidth, int offset)
+{
+    for (int j = 0; j < 8; j++)
+    {
+		for (int i = 0; i < 8; i++)
+		{
+			*(frame + offset + i + j * frameWidth) = (BYTE)block[i][j]; 
+		}
+    }
+}
+
 // Compute_MV
 // computes motionVector
 // Input   8x8 block [Y/U/V]
@@ -537,6 +548,9 @@ void Encode_Video_File()
     vector<int> run_length_table;
 
     char blockTypes[6] = {'y', 'y', 'y', 'y', 'u', 'v'};
+    float frameSizes[6] = {1, 1, 1, 1, .5f, .5f};
+    
+
 
     int isIframe = 1;
     //start encoding loop
@@ -552,6 +566,15 @@ void Encode_Video_File()
 	for (macroblock_Ypos = 0; macroblock_Ypos < Y_frame_height; macroblock_Ypos += 16)
 	    for (macroblock_Xpos = 0; macroblock_Xpos < Y_frame_width; macroblock_Xpos += 16)
 	    {
+			char blockOffeets[6] = {
+				0 + (macroblock_Xpos) + (macroblock_Ypos) * Y_frame_width,
+				0 + (macroblock_Xpos + 8) + (macroblock_Ypos) * Y_frame_width,
+				0 + (macroblock_Xpos) + (macroblock_Ypos + 8) * Y_frame_width,
+				0 + (macroblock_Xpos + 8) + (macroblock_Ypos + 8) * Y_frame_width,
+				y_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
+				y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
+			};
+
 		//load individual blocks into current_blocks
 		for (int block_y = 0; block_y < 8; block_y++)
 		    for (int block_x = 0; block_x < 8; block_x++)
@@ -602,7 +625,8 @@ void Encode_Video_File()
 				run_length_table = Compute_VLC(outBlock);
 				//write coefficient into output file
 				writeEncodedMacroblock(run_length_table, OutputFile);
-						
+
+				set8x8Block(codecBlock, lastIFrameBuffer, (int)(Y_frame_width* 1.0*frameSizes[block_index]), blockOffeets[block_index]);
 
 		    }
 		    else
@@ -620,7 +644,7 @@ void Encode_Video_File()
     } //end frame loop
 
     //free allocated memory
-    delete frameBuffer;
+    // delete frameBuffer;
     fclose(OutputFile);
     //	free(outputEncodedStream);
 
