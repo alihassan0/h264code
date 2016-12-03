@@ -21,8 +21,8 @@ typedef struct Block
 
 typedef struct MV
 {
-    BYTE x;
-    BYTE y;
+    MyDataSize x;
+    MyDataSize y;
 } MV;
 
 // Get the size of a file
@@ -228,7 +228,8 @@ MV Compute_MV(Block block, BYTE *frame)
 	    }
 	}
     }
-    MV mv = {(minI - block.x), (minJ - block.y)};
+	
+    MV mv = {(MyDataSize)(minI - block.x), (MyDataSize)(minJ - block.y)};
     return mv;
 }
 
@@ -776,7 +777,7 @@ void Decode_Video_File()
 	frame_num++;		
 	
 	BYTE *new_yuv_frameBuffer = new BYTE[framesize];
-	BYTE mvX, mvY;
+	MyDataSize mvX, mvY;
 	int offsetY = 0, offsetU = 0, offsetV = 0;
 	int offsetYMV = 0, offsetUMV = 0, offsetVMV = 0;
 	//TODO get the size dynamically
@@ -797,37 +798,37 @@ void Decode_Video_File()
 					mvX = fileBuffer[mvIndex+0];mvY = fileBuffer[mvIndex+1];
 					offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width;
 					offsetYMV = (macroblock_Xpos + mvX + block_x) + (macroblock_Ypos + mvY + block_y) * Y_frame_width;
-					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetY );
+					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					
 					//Y block 1
 					mvX = fileBuffer[mvIndex+2];mvY = fileBuffer[mvIndex+3];
 					offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width;
 					offsetYMV = (macroblock_Xpos + mvX + block_x + 8) + (macroblock_Ypos + mvY + block_y) * Y_frame_width;
-					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetY );
+					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					
 					//Y block 2
 					mvX = fileBuffer[mvIndex+4];mvY = fileBuffer[mvIndex+5];
 					offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
 					offsetYMV = (macroblock_Xpos + mvX + block_x) + (macroblock_Ypos + mvY + block_y + 8) * Y_frame_width;
-					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetY );
+					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					
 					//Y block 3
 					mvX = fileBuffer[mvIndex+6];mvY = fileBuffer[mvIndex+7];
 					offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
 					offsetYMV = (macroblock_Xpos + mvX + block_x + 8) + (macroblock_Ypos + mvY + block_y + 8) * Y_frame_width;
-					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetY );
+					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 					
 					//u block
 					mvX = fileBuffer[mvIndex+8];mvY = fileBuffer[mvIndex+9];
 					offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2;
-					offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + mvX + block_x) + (macroblock_Ypos / 2 + mvY + block_y) * Y_frame_width / 2;
-					*(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetU );
+					offsetUMV = y_buffer_size_bytes + (macroblock_Xpos / 2 + mvX + block_x) + (macroblock_Ypos / 2 + mvY + block_y) * Y_frame_width / 2;
+					*(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
 					
 					//v block
 					mvX = fileBuffer[mvIndex+10];mvY = fileBuffer[mvIndex+11];
 					offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2;
-					offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + mvX + block_x) + (macroblock_Ypos / 2 +  mvY+block_y) * Y_frame_width / 2;
-					*(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetV );
+					offsetVMV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + mvX + block_x) + (macroblock_Ypos / 2 +  mvY+block_y) * Y_frame_width / 2;
+					*(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
 				}
 			}
 			mvIndex+= 12;
