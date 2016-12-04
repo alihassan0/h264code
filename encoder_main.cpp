@@ -8,9 +8,19 @@
 #include <vector>
 #include <cstdlib>
 
+/** TODOS
+- motion vector is calculated once by macroblock and is used in y frame 16*16
+- add subtraction module
+- encode subtraction block
+- decode  subtraction block
+- add addition module
+- use last Pframe instead of b framesize 
+ 
+
+*/
 typedef __int8_t MyDataSize;
 using namespace std;
-typedef unsigned char BYTE;
+typedef __int8_t BYTE;
 typedef struct Block
 {
     BYTE data[8][8];
@@ -227,17 +237,17 @@ MV Compute_MV(Block block, BYTE *frame)
 
     for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 8)
     {
-	for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 8)
-	{
-	    Block frameBlock = get8x8Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
-	    int sad = Compute_SAD(block.data, frameBlock.data);
-	    if (sad < minValue && block.x != macroblock_Xpos && block.y != macroblock_Ypos)
-	    {
-		minI = macroblock_Xpos;
-		minJ = macroblock_Ypos;
-		minValue = sad;
-	    }
-	}
+		for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 8)
+		{
+			Block frameBlock = get8x8Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
+			int sad = Compute_SAD(block.data, frameBlock.data);
+			if (sad < minValue && block.x != macroblock_Xpos && block.y != macroblock_Ypos)
+			{
+			minI = macroblock_Xpos;
+			minJ = macroblock_Ypos;
+			minValue = sad;
+			}
+		}
     }
 	Block frameBlock = get8x8Block(frame, maxWidth, minI, minJ);
 	int sad = Compute_SAD(block.data, frameBlock.data);
@@ -495,6 +505,21 @@ void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
     }
 }
 
+//compute diffences
+//matrix1 current frame block
+//matrix2 deoceded reference frame  block
+//outMatrix output 
+void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8][8])
+{
+    for (int i = 0; i < 8; i++)
+    {
+		for (int j = 0; j < 8; j++)
+		{
+			outMatrix[i][j] = matrix1[i][j] * matrix1[i][j];
+		}
+    }
+}
+
 
 void Encode_Video_File()
 {
@@ -549,9 +574,8 @@ void Encode_Video_File()
 
     char blockTypes[6] = {'y', 'y', 'y', 'y', 'u', 'v'};
     float frameSizes[6] = {1, 1, 1, 1, .5f, .5f};
+    BYTE* frameOffsets[6] = {frameBuffer, frameBuffer, frameBuffer, frameBuffer, uFrameStart, vFrameStart};
     
-
-
     int isIframe = 1;
     //start encoding loop
     for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
@@ -606,35 +630,54 @@ void Encode_Video_File()
 		    }
 		//macroblock processing
 		//loop accross all blocks in the macroblock
+
+		// TODO : Change this to compute mv for 16*16 y frame
+		current_blocks[0].type = 'y';
+		//get the best motion vector
+		MV mv = Compute_MV(current_blocks[0], lastIFrameBuffer);
 		for (int block_index = 0; block_index < 6; block_index++)
 		{
-		    if (isIframe) //to mv or not to mv
+			
+			int outBlock[8][8];
+
+			if (isIframe) //to mv or not to mv
 		    {
-				int outBlock[8][8];
-				int codecBlock[8][8];
+				int codec[8][8];
 
 				//DCT
 				Compute_DCT(current_blocks[block_index].data, outBlock);
 				//Quantization
 				Compute_quantization(outBlock, outBlock);
 				// inverse Quantization
-				Compute_Inverse_quantization(outBlock, codecBlock);
+				Compute_Inverse_quantization(outBlock, codec);
 				//IDCT 
-				Compute_idct(codecBlock, codecBlock);
+				Compute_idct(codec, codec);
 				//Zigzag and run length
 				run_length_table = Compute_VLC(outBlock);
 				//write coefficient into output file
 				writeEncodedMacroblock(run_length_table, OutputFile);
 
-				set8x8Block(codecBlock, lastIFrameBuffer, (int)(Y_frame_width* 1.0*frameSizes[block_index]), blockOffeets[block_index]);
+				set8x8Block(codec, lastIFrameBuffer, (int)(Y_frame_width* 1.0*frameSizes[block_index]), blockOffeets[block_index]);
 
 		    }
 		    else
 		    {
-				current_blocks[block_index].type = blockTypes[block_index];
-				MV res = Compute_MV(current_blocks[block_index], lastIFrameBuffer);
-				// cout << (short)res.x << "," << (short)res.y << endl;
-				writeMotionVector(res,OutputFile);
+
+
+				//compute the diffrence between the each block and the best match 
+				Block refFrameBlock = get8x8Block(frameOffsets[block_index], Y_frame_width* frameSizes[block_index] ,  (mv.x*16+macroblock_Xpos)* 1.0*frameSizes[block_index],  (mv.y*16+macroblock_Ypos)* 1.0*frameSizes[block_index]);
+				
+				Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);
+				
+				//DCT
+				Compute_DCT(current_blocks[block_index].data, outBlock);
+				//Quantization
+				Compute_quantization(outBlock, outBlock);
+				//Zigzag and run length
+				run_length_table = Compute_VLC(outBlock);
+
+				writeMotionVector(mv,OutputFile);
+				writeEncodedMacroblock(run_length_table, OutputFile);
 		    }
 		}
 
