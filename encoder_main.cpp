@@ -211,7 +211,7 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
     {
 		for (int i = 0; i < 8; i++)
 		{
-			block.data[j][i] = *(frame + (startI + i) + (startJ + j) * frameWidth);
+			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
 		}
     }
     return block;
