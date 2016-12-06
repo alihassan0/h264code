@@ -223,7 +223,9 @@ void set8x8Block(int block[8][8], BYTE *frame, int frameWidth, int offset)
     {
 		for (int i = 0; i < 8; i++)
 		{
-			*(frame + offset + i + j * frameWidth) = (BYTE)block[i][j]; 
+			BYTE tobeSetValue = (BYTE)block[j][i];
+			int pixelOffset = offset + i + j * frameWidth;
+			*(frame +pixelOffset) = tobeSetValue; 
 		}
     }
 }
@@ -517,7 +519,7 @@ void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8
     {
 		for (int j = 0; j < 8; j++)
 		{
-			outMatrix[i][j] = matrix1[i][j] - matrix1[i][j];
+			outMatrix[i][j] = matrix1[i][j] - matrix2[i][j];
 		}
     }
 }
@@ -591,6 +593,8 @@ void Encode_Video_File()
 	int blockOffsetsXY[12] = {0,0,8,0,0,8,8,8,0,0,0,0};
 	
     BYTE* frameOffsets[6] = {frameBuffer, frameBuffer, frameBuffer, frameBuffer, uFrameStart, vFrameStart};
+    BYTE* refFrameOffsets[6] = {referenceFrameBuffer, referenceFrameBuffer, referenceFrameBuffer, referenceFrameBuffer, 
+								referenceFrameBuffer + y_buffer_size_bytes, referenceFrameBuffer + y_buffer_size_bytes+ u_buffer_size_bytes};
     
     int isIframe = 1;
     //start encoding loop
@@ -617,7 +621,9 @@ void Encode_Video_File()
 		//get the best motion vector
 		//NOTE it returns the position of the post match and not direction also it's for uv devide/2 
 		MV mv;
-		if (!isIframe)
+		mv.x = 0;
+		mv.y = 0;
+		if (false)//TODO calculate mvs
 		{
 			mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
 			writeMotionVector(mv,OutputFile);
@@ -632,7 +638,7 @@ void Encode_Video_File()
 		    {
 				//TODO revise this
 				//gets best match block using the motion vector
-				Block refFrameBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  (mv.x*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mv.y*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
+				Block refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  (mv.x*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mv.y*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
 				Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
 			}
 			//to store the block after it's  decoding
@@ -647,6 +653,10 @@ void Encode_Video_File()
 			Compute_idct(codec, codec);
 			//Zigzag and run length
 			run_length_table = Compute_VLC(outBlock);
+			// cout << "size of vlc "<<run_length_table.size() << ' ' ;
+			// for(int i=0; i<run_length_table.size(); ++i)
+  			// 	cout << (int)run_length_table[i] << ' ' ;
+			// cout << endl;
 			//write coefficient into output file
 			writeEncodedMacroblock(run_length_table, OutputFile);
 
