@@ -211,7 +211,7 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
     {
 		for (int i = 0; i < 8; i++)
 		{
-			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
+			block.data[j][i] = *(frame + (startI + i) + (startJ + j) * frameWidth);
 		}
     }
     return block;
@@ -913,17 +913,17 @@ void Decode_Video_File()
 				for (int block_x = 0; block_x < 8; block_x++)
 				{
 					//Y block 0
-					*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
+					*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_y][block_x];
 					//Y block 1
-					*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
+					*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_y][block_x];
 					//Y block 2
-					*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
+					*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_y][block_x];
 					//Y block 3
-					*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
+					*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_y][block_x];
 					//u block
-					*(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
+					*(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_y][block_x];
 					//v block
-					*(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
+					*(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_y][block_x];
 				}
 			}
 			//store last decoded frame to be used for motion compansation in the next frame
@@ -1019,7 +1019,7 @@ int main(int argc, char *argv[])
 {
     Encode_Video_File();
     cout << "File encoding completed, press a key to continue";
-    cin.get();
+    // cin.get();
 
     Decode_Video_File();
     cout << "File decoding completed, press a key to exit";
