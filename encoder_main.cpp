@@ -14,10 +14,12 @@ typedef unsigned char BYTE;
 typedef struct Block
 {
     BYTE data[8][8];
-    char type;
-    BYTE x;
-    BYTE y;
 } Block;
+
+typedef struct Block16x16
+{
+    BYTE data[16][16];
+} Block16x16;
 
 typedef struct MV
 {
@@ -137,23 +139,23 @@ void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
     }
 }
 
+
 //Compute_SAD
 // computes sad value between two blocks
-//Input   8x8 block1
-//Output  8x8 block2
+//Input   16x16 block1
+//Output  16x16 block2
 //return  int sadValue
-int Compute_SAD(BYTE block1[8][8], BYTE block2[8][8])
+int Compute_SAD(BYTE block1[16][16], BYTE block2[16][16])
 {
     int sadValue = 0;
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 16; i++)
     {
-	for (int j = 0; j < 8; j++)
-	{
-	    BYTE value1 = block1[i][j];
-	    BYTE value2 = block2[i][j];
-
-	    sadValue += abs(value1 - value2);
-	}
+		for (int j = 0; j < 16; j++)
+		{
+			BYTE value1 = block1[i][j];
+			BYTE value2 = block2[i][j];
+			sadValue += abs(value1 - value2);
+		}
     }
     return sadValue;
 }
@@ -163,10 +165,25 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
     Block block;
     for (int j = 0; j < 8; j++)
     {
-	for (int i = 0; i < 8; i++)
-	{
-	    block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
-	}
+		for (int i = 0; i < 8; i++)
+		{
+			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
+		}
+    }
+    return block;
+}
+
+
+//startI, startJ are assumed to be multiples of 16
+Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
+{
+    Block16x16 block;
+    for (int j = 0; j < 16; j++)
+    {
+		for (int i = 0; i < 16; i++)
+		{
+			block.data[j][i] = *(frame + (startI + i) + (startJ + j) * frameWidth);
+		}
     }
     return block;
 }
@@ -175,46 +192,30 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
 // computes motionVector
 // Input   8x8 block [Y/U/V]
 // Output  8x8 Iframe[YFrame,UFrame,VFrame]
-MV Compute_MV(Block block, BYTE *frame)
+MV Compute_MV(Block16x16 block, BYTE *frame)
 {
-    int offset;
+    int offset = 0;
     int maxWidth = Y_frame_width;
-    int maxHeight = Y_frame_height;
-    switch (block.type)
-    {
-    case 'y':
-	offset = 0;
-	break;
-
-    case 'u':
-	offset = (Y_frame_width * Y_frame_height);
-	maxWidth /= 2;
-	break;
-
-    case 'v':
-	offset = (Y_frame_width * Y_frame_height) * (5 / 4);
-	maxHeight /= 2;
-	break;
-    }
+    int maxHeight = Y_frame_height;    
     int minValue = 65535;
     BYTE minI = 0, minJ = 0;
 
-    for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 8)
+    for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 16)
     {
-	for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 8)
-	{
-	    Block frameBlock = get8x8Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
-	    int sad = Compute_SAD(block.data, frameBlock.data);
-	    if (sad < minValue && block.x != macroblock_Xpos && block.y != macroblock_Ypos)
-	    {
-		minI = macroblock_Xpos;
-		minJ = macroblock_Ypos;
-		minValue = sad;
-	    }
-	    cout << "SAD value for " << sad << endl;
-	}
+		for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 16)
+		{
+			Block16x16 frameBlock = get16x16Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
+			int sad = Compute_SAD(block.data, frameBlock.data);
+			if (sad < minValue)
+			{
+				minI = macroblock_Xpos;
+				minJ = macroblock_Ypos;
+				minValue = sad;
+			}
+		}
     }
-    MV mv = {(minI - block.x) / 8, (minJ - block.y) / 8};
+
+    MV mv = {(MyDataSize)(minI/16), (MyDataSize)(minJ/16)};
     return mv;
 }
 
@@ -403,31 +404,25 @@ void Encode_Video_File()
 		for (int block_y = 0; block_y < 8; block_y++)
 		    for (int block_x = 0; block_x < 8; block_x++)
 		    {
-			//Y block 0
-			current_blocks[0].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width);
-			current_blocks[0].x = (macroblock_Xpos);
-			current_blocks[0].y = (macroblock_Ypos);
-			//Y block 1
-			current_blocks[1].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width);
-			current_blocks[1].x = (macroblock_Xpos + 8);
-			current_blocks[1].y = (macroblock_Ypos);
-			//Y block 2
-			current_blocks[2].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
-			current_blocks[2].x = (macroblock_Xpos);
-			current_blocks[2].y = (macroblock_Ypos + 8);
-			//Y block 3
-			current_blocks[3].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
-			current_blocks[3].x = (macroblock_Xpos + 8);
-			current_blocks[3].y = (macroblock_Ypos + 8);
-			//u block
-			current_blocks[4].data[block_x][block_y] = *(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
-			current_blocks[4].x = (macroblock_Xpos / 2);
-			current_blocks[4].y = (macroblock_Ypos / 2);
-			//v block
-			current_blocks[5].data[block_x][block_y] = *(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
-			current_blocks[5].x = (macroblock_Xpos / 2);
-			current_blocks[5].y = (macroblock_Ypos / 2);
-		    }
+				//Y block 0
+				current_blocks[0].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width);
+
+				//Y block 1
+				current_blocks[1].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width);
+
+				//Y block 2
+				current_blocks[2].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
+
+				//Y block 3
+				current_blocks[3].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
+
+				//u block
+				current_blocks[4].data[block_x][block_y] = *(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
+
+				//v block
+				current_blocks[5].data[block_x][block_y] = *(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
+				
+			}
 		//macroblock processing
 		//loop accross all blocks in the macroblock
 		for (int block_index = 0; block_index < 6; block_index++)
@@ -447,9 +442,10 @@ void Encode_Video_File()
 		    }
 		    else
 		    {
-			current_blocks[block_index].type = blockTypes[block_index];
-			MV res = Compute_MV(current_blocks[block_index], frameBuffer);
-			cout << (int)res.x << "," << (int)res.y << endl;
+				//get the best motion vector
+				//NOTE it returns the position of the best match and not direction also it's for uv devide/2 
+				// MV res = Compute_MV(current_blocks[block_index], frameBuffer);
+				// cout << (int)res.x << "," << (int)res.y << endl;
 		    }
 		}
 		isIframe = 0;
@@ -725,7 +721,7 @@ void Decode_Video_File()
 		inputBlock.clear();
 		number_block_coefficients = fileBuffer[coefficient_index];
 		coefficient_index++; //advance index to point to next coefficient in the fileBuffer
-		cout << "reading block # " << block_num << " number of coefficients is: " << number_block_coefficients << endl;
+		// cout << "reading block # " << block_num << " number of coefficients is: " << number_block_coefficients << endl;
 		for (int j = 0; j < number_block_coefficients; j++)
 		{
 		    inputBlock.push_back(fileBuffer[coefficient_index + j]);
