@@ -17,9 +17,9 @@
 - use last Pframe instead of b framesize 
 - when decoding I need  to store I frame
 --- INPROGRESS
-- store reference to last frame
 - correctly compute mvs
 --- DONE
+- store reference to last frame
 */
 typedef __int8_t MyDataSize;
 using namespace std;
@@ -27,10 +27,12 @@ typedef __int8_t BYTE;
 typedef struct Block
 {
     BYTE data[8][8];
-    char type;
-    BYTE x;
-    BYTE y;
 } Block;
+
+typedef struct Block16x16
+{
+    BYTE data[16][16];
+} Block16x16;
 
 typedef struct MV
 {
@@ -131,18 +133,18 @@ vector<int> Compute_VLC(int block[8][8])
 
     for (int coefficient_index = 0; coefficient_index < 64; coefficient_index++)
     {
-	if (zigzag_scaned_values[coefficient_index] == 0)
-	{
-	    run_num++;
-	}
-	else
-	{
-	    //store run-level pair
-	    rle.push_back(run_num);
-	    rle.push_back(zigzag_scaned_values[coefficient_index]);
-	    //reset run counter
-	    run_num = 0;
-	}
+		if (zigzag_scaned_values[coefficient_index] == 0)
+		{
+			run_num++;
+		}
+		else
+		{
+			//store run-level pair
+			rle.push_back(run_num);
+			rle.push_back(zigzag_scaned_values[coefficient_index]);
+			//reset run counter
+			run_num = 0;
+		}
     }
 
     return rle;
@@ -170,23 +172,37 @@ void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
 //Input   8x8 block1
 //Output  8x8 block2
 //return  int sadValue
-int Compute_SAD(BYTE block1[8][8], BYTE block2[8][8])
+int Compute_SAD(BYTE block1[16][16], BYTE block2[16][16])
 {
     int sadValue = 0;
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 16; i++)
     {
-	for (int j = 0; j < 8; j++)
-	{
-	    BYTE value1 = block1[i][j];
-	    BYTE value2 = block2[i][j];
-
-		    sadValue += abs(value1 - value2);
-	}
+		for (int j = 0; j < 16; j++)
+		{
+			BYTE value1 = block1[i][j];
+			BYTE value2 = block2[i][j];
+			sadValue += abs(value1 - value2);
+		}
     }
     return sadValue;
 }
 
 
+//startI, startJ are assumed to be multiples of 16
+Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
+{
+    Block16x16 block;
+    for (int j = 0; j < 16; j++)
+    {
+		for (int i = 0; i < 16; i++)
+		{
+			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
+		}
+    }
+    return block;
+}
+
+//startI, startJ are assumed to be multiples of 8
 Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
 {
     Block block;
@@ -215,49 +231,30 @@ void set8x8Block(int block[8][8], BYTE *frame, int frameWidth, int offset)
 // computes motionVector
 // Input   8x8 block [Y/U/V]
 // Output  8x8 Iframe[YFrame,UFrame,VFrame]
-MV Compute_MV(Block block, BYTE *frame)
+MV Compute_MV(Block16x16 block, BYTE *frame)
 {
-    int offset;
+    int offset = 0;
     int maxWidth = Y_frame_width;
-    int maxHeight = Y_frame_height;
-    switch (block.type)
-    {
-    case 'y':
-	offset = 0;
-	break;
-
-    case 'u':
-	offset = (Y_frame_width * Y_frame_height);
-	maxWidth /= 2;
-	break;
-
-    case 'v':
-	offset = (Y_frame_width * Y_frame_height) * (5 / 4);
-	maxHeight /= 2;
-	break;
-    }
+    int maxHeight = Y_frame_height;    
     int minValue = 65535;
     BYTE minI = 0, minJ = 0;
 
-    for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 8)
+    for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 16)
     {
-		for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 8)
+		for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 16)
 		{
-			Block frameBlock = get8x8Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
+			Block16x16 frameBlock = get16x16Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
 			int sad = Compute_SAD(block.data, frameBlock.data);
-			if (sad < minValue && block.x != macroblock_Xpos && block.y != macroblock_Ypos)
+			if (sad < minValue)
 			{
-			minI = macroblock_Xpos;
-			minJ = macroblock_Ypos;
-			minValue = sad;
+				minI = macroblock_Xpos;
+				minJ = macroblock_Ypos;
+				minValue = sad;
 			}
 		}
     }
-	Block frameBlock = get8x8Block(frame, maxWidth, minI, minJ);
-	int sad = Compute_SAD(block.data, frameBlock.data);
-	    
-	
-    MV mv = {(MyDataSize)((minI - block.x)/8), (MyDataSize)(minJ - block.y)/8};
+
+    MV mv = {(MyDataSize)(minI/8), (MyDataSize)(minJ/8)};
     return mv;
 }
 
@@ -616,9 +613,9 @@ void Encode_Video_File()
 			};
 		
 		
-		current_blocks[0].type = 'y';
 		//get the best motion vector
-		MV mv = Compute_MV(current_blocks[0], referenceFrameBuffer);
+		//NOTE it returns the position of the post match and not direction also it's for uv devide/2 
+		MV mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
 		writeMotionVector(mv,OutputFile);
 		for (int block_index = 0; block_index < 6; block_index++)
 		{
