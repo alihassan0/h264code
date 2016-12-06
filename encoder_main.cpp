@@ -653,6 +653,9 @@ void Encode_Video_File()
 			Compute_idct(codec, codec);
 			//Zigzag and run length
 			run_length_table = Compute_VLC(outBlock);
+			if(frame_num == 1)
+				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
+	
 			// cout << "size of vlc "<<run_length_table.size() << ' ' ;
 			// for(int i=0; i<run_length_table.size(); ++i)
   			// 	cout << (int)run_length_table[i] << ' ' ;
