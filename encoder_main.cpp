@@ -208,7 +208,7 @@ Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
     {
 		for (int i = 0; i < 16; i++)
 		{
-			block.data[j][i] = *(frame + (startI + i) + (startJ + j) * frameWidth);
+			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
 		}
     }
     return block;
@@ -631,8 +631,6 @@ void Encode_Video_File()
 			//macroblock processing
 			//loop accross all blocks in the macroblock
 			MV mv;
-			mv.x = 0;
-			mv.y = 0;
 			int blockOffsets[6] = {
 				0 + (macroblock_Xpos) + (macroblock_Ypos) * Y_frame_width,
 				0 + (macroblock_Xpos + 8) + (macroblock_Ypos) * Y_frame_width,
@@ -643,7 +641,7 @@ void Encode_Video_File()
 			};
 			if (!isIframe)//TODO calculate mvs
 			{
-				// mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
+				mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
 				writeMotionVector(mv,OutputFile);
 			}
 
