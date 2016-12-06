@@ -67,6 +67,20 @@ int zigzag_order[8][8] = {
 };
 
 //////////////////////////////// ENCODE //////////////////////////
+
+void writeMotionVector(MV mv,FILE *output_file)
+{
+    MyDataSize output_value;
+    
+	output_value = (MyDataSize)mv.x;
+	//writing the value of mv.x
+	fwrite(&output_value, sizeof(MyDataSize), 1, output_file);
+
+    output_value = (MyDataSize)mv.y;
+	//writing the value of mv.y
+	fwrite(&output_value, sizeof(MyDataSize), 1, output_file);
+}
+
 void writeEncodedMacroblock(vector<int> rle, FILE *output_file)
 {
     MyDataSize output_value;
@@ -173,6 +187,18 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
     return block;
 }
 
+void set8x8Block(int block[8][8], BYTE *frame, int frameWidth, int offset)
+{
+    for (int j = 0; j < 8; j++)
+    {
+		for (int i = 0; i < 8; i++)
+		{
+			BYTE tobeSetValue = (BYTE)block[j][i];
+			int pixelOffset = offset + i + j * frameWidth;
+			*(frame +pixelOffset) = tobeSetValue; 
+		}
+    }
+}
 
 //startI, startJ are assumed to be multiples of 16
 Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
@@ -187,6 +213,33 @@ Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
     }
     return block;
 }
+
+//compute diffences
+//matrix1 current frame block
+//matrix2 deoceded reference frame  block
+//outMatrix output 
+void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8][8])
+{
+    for (int i = 0; i < 8; i++)
+    {
+		for (int j = 0; j < 8; j++)
+		{
+			outMatrix[i][j] = matrix1[i][j] - matrix2[i][j];
+		}
+    }
+}
+
+void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8])
+{
+    for (int i = 0; i < 8; i++)
+    {
+		for (int j = 0; j < 8; j++)
+		{
+			outMatrix[i][j] = matrix1[i][j] + matrix1[i][j];
+		}
+    }
+}
+
 
 // Compute_MV
 // computes motionVector
@@ -332,183 +385,6 @@ void Compute_DCT(BYTE input_block[8][8], int output_block[8][8])
     }
 }
 
-void Encode_Video_File()
-{
-    const char *inputFileName = "coastguard_qcif.yuv";
-    BYTE *frameBuffer; // Pointer to current frame buffer
-    //BYTE *outputEncodedStream;  //pointer to output stream buffer
-    FILE *inputFileptr = NULL; // File pointer
-    // Open the file in binary mode
-    if ((inputFileptr = fopen(inputFileName, "rb")) == NULL)
-    {
-	cout << "Could not open specified file" << endl;
-	exit(-1);
-    }
-    else
-	cout << "File opened successfully" << endl;
-
-    FILE *OutputFile;
-
-    if ((OutputFile = fopen("output/encoded_coastguard_qcif.264", "wb")) == NULL)
-    {
-	cout << "Could not open output file" << endl;
-	exit(-1);
-    }
-    else
-	cout << "output File opened successfully" << endl;
-
-    //Set Y,U, and V frame sizes
-    y_buffer_size_bytes = Y_frame_width * Y_frame_height;
-    u_buffer_size_bytes = (Y_frame_width * Y_frame_height) / 4;
-    v_buffer_size_bytes = (Y_frame_width * Y_frame_height) / 4;
-    //Total YUV frame size
-    framesize = y_buffer_size_bytes + u_buffer_size_bytes + v_buffer_size_bytes;
-
-    // Get the size of the file in bytes
-    long fileSize = getFileSize(inputFileptr);
-    total_number_of_frames = fileSize / framesize;
-    cout << "input file" << inputFileName << " size in bytes is " << fileSize << " & number of frames is " << total_number_of_frames << endl;
-
-    // Allocate space in the buffer for a single frame
-    frameBuffer = new BYTE[framesize];
-    BYTE *lastIFrameBuffer = new BYTE[framesize];
-    BYTE *uFrameStart, *vFrameStart;
-    uFrameStart = frameBuffer + y_buffer_size_bytes;
-    vFrameStart = uFrameStart + u_buffer_size_bytes;
-
-    //Allocate space for output encoded stream
-    //outputEncodedStream = new BYTE[total_number_of_frames*4000]; //asumption: assume average frame size is 4000 bytes
-
-    int macroblock_Xpos, macroblock_Ypos; //hold top-left corner of current macroblock "to be encoded"
-    Block current_blocks[6];
-    vector<int> run_length_table;
-
-    char blockTypes[6] = {'y', 'y', 'y', 'y', 'u', 'v'};
-
-    int isIframe = 1;
-    //start encoding loop
-    for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
-    {
-	cout << "Encoding frame number: " << frame_num << endl;
-	//read a frame from input file into the frameBuffer
-	fread(frameBuffer, framesize, 1, inputFileptr);
-	if (isIframe)
-	    copy(frameBuffer, frameBuffer + framesize, lastIFrameBuffer);
-	// std::copy(std::begin(frameBuffer), std::end(frameBuffer), std::begin(lastIFrameBuffer));
-
-	//loop accross blocks
-	for (macroblock_Ypos = 0; macroblock_Ypos < Y_frame_height; macroblock_Ypos += 16)
-	    for (macroblock_Xpos = 0; macroblock_Xpos < Y_frame_width; macroblock_Xpos += 16)
-	    {
-		//load individual blocks into current_blocks
-		for (int block_y = 0; block_y < 8; block_y++)
-		    for (int block_x = 0; block_x < 8; block_x++)
-		    {
-				//Y block 0
-				current_blocks[0].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width);
-
-				//Y block 1
-				current_blocks[1].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width);
-
-				//Y block 2
-				current_blocks[2].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
-
-				//Y block 3
-				current_blocks[3].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
-
-				//u block
-				current_blocks[4].data[block_x][block_y] = *(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
-
-				//v block
-				current_blocks[5].data[block_x][block_y] = *(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
-				
-			}
-		//macroblock processing
-		//loop accross all blocks in the macroblock
-		for (int block_index = 0; block_index < 6; block_index++)
-		{
-		    if (true) //to mv or not to mv
-		    {
-			int outBlock[8][8];
-
-			//DCT
-			Compute_DCT(current_blocks[block_index].data, outBlock);
-			//Quantization
-			Compute_quantization(outBlock, outBlock);
-			//Zigzag and run length
-			run_length_table = Compute_VLC(outBlock);
-			//write coefficient into output file
-			writeEncodedMacroblock(run_length_table, OutputFile);
-		    }
-		    else
-		    {
-				//get the best motion vector
-				//NOTE it returns the position of the best match and not direction also it's for uv devide/2 
-				// MV res = Compute_MV(current_blocks[block_index], frameBuffer);
-				// cout << (int)res.x << "," << (int)res.y << endl;
-		    }
-		}
-		isIframe = 0;
-
-	    } //end macroblock loop
-
-    } //end frame loop
-
-    //free allocated memory
-    delete frameBuffer;
-    fclose(OutputFile);
-    //	free(outputEncodedStream);
-
-    return;
-}
-
-///////////////////////////////////////////////////////// DECODE //////////////////////////
-
-//Inverse ZigZag scan
-//read number of coefficients from rle (number = length), store the coefficients in output_block
-void Compute_inverseZigzag(vector<int> rle, int num_coefficients, int output_block[8][8])
-{
-    memset(output_block, 0, sizeof(int) * 8 * 8); //initialzie the output_block to zeros
-    int zigzag_scaned_values[64];
-
-    //loop for all number of coefficients
-    int run_num; //number of zeros before a non-zero value
-    int level;   // non-zero value
-    //int zigzag_scaned_values_index;
-    int zigzag_ordered_index;
-
-    //initalization
-    zigzag_ordered_index = 0;
-    memset(zigzag_scaned_values, 0, sizeof(int) * 64);
-
-    for (int coefficient_index = 0; coefficient_index < num_coefficients; coefficient_index += 2) //read two at a time
-    {
-	run_num = rle[coefficient_index];
-	level = rle[coefficient_index + 1];
-
-	//fill the zigzag_scaned_values array
-	for (int zero_coefficient_count = 0; zero_coefficient_count < run_num; zero_coefficient_count++)
-	{
-	    zigzag_scaned_values[zigzag_ordered_index] = 0;
-	    zigzag_ordered_index++;
-	}
-	//fill level
-	zigzag_scaned_values[zigzag_ordered_index] = level;
-	zigzag_ordered_index++;
-
-	//countinue with next coefficient pair
-    }
-
-    //now  zigzag_scaned_values has the coefficients in zigzag order, need to convert them to normal order in 8x8 block
-
-    for (int col_index = 0; col_index < 8; col_index++)
-	for (int row_index = 0; row_index < 8; row_index++)
-	{
-	    zigzag_ordered_index = zigzag_order[col_index][row_index];
-	    output_block[col_index][row_index] = zigzag_scaned_values[zigzag_ordered_index];
-	}
-}
-
 //Inverse DCT function
 void Compute_idct(int inblock[8][8], int outblock[8][8])
 {
@@ -643,6 +519,218 @@ void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 	}
     }
 }
+void Encode_Video_File()
+{
+    const char *inputFileName = "coastguard_qcif.yuv";
+    BYTE *frameBuffer; // Pointer to current frame buffer
+    //BYTE *outputEncodedStream;  //pointer to output stream buffer
+    FILE *inputFileptr = NULL; // File pointer
+    // Open the file in binary mode
+    if ((inputFileptr = fopen(inputFileName, "rb")) == NULL)
+    {
+	cout << "Could not open specified file" << endl;
+	exit(-1);
+    }
+    else
+	cout << "File opened successfully" << endl;
+
+    FILE *OutputFile;
+
+    if ((OutputFile = fopen("output/encoded_coastguard_qcif.264", "wb")) == NULL)
+    {
+	cout << "Could not open output file" << endl;
+	exit(-1);
+    }
+    else
+	cout << "output File opened successfully" << endl;
+
+    //Set Y,U, and V frame sizes
+    y_buffer_size_bytes = Y_frame_width * Y_frame_height;
+    u_buffer_size_bytes = (Y_frame_width * Y_frame_height) / 4;
+    v_buffer_size_bytes = (Y_frame_width * Y_frame_height) / 4;
+    //Total YUV frame size
+    framesize = y_buffer_size_bytes + u_buffer_size_bytes + v_buffer_size_bytes;
+
+    // Get the size of the file in bytes
+    long fileSize = getFileSize(inputFileptr);
+    total_number_of_frames = fileSize / framesize;
+    cout << "input file" << inputFileName << " size in bytes is " << fileSize << " & number of frames is " << total_number_of_frames << endl;
+
+    // Allocate space in the buffer for a single frame
+    frameBuffer = new BYTE[framesize];
+    BYTE *referenceFrameBuffer = new BYTE[framesize];
+    BYTE *uFrameStart, *vFrameStart;
+    uFrameStart = frameBuffer + y_buffer_size_bytes;
+    vFrameStart = uFrameStart + u_buffer_size_bytes;
+
+    //Allocate space for output encoded stream
+    //outputEncodedStream = new BYTE[total_number_of_frames*4000]; //asumption: assume average frame size is 4000 bytes
+
+    int macroblock_Xpos, macroblock_Ypos; //hold top-left corner of current macroblock "to be encoded"
+    Block current_blocks[6];
+    vector<int> run_length_table;
+
+	//array of frame widths
+    int frameWidths[6] = {Y_frame_width, Y_frame_width, Y_frame_width, Y_frame_width, Y_frame_width/2, Y_frame_width/2};
+	//yyyyuv each in the format of x,y
+	int blockOffsetsXY[12] = {0,0,8,0,0,8,8,8,0,0,0,0};
+	
+    BYTE* frameOffsets[6] = {frameBuffer, frameBuffer, frameBuffer, frameBuffer, uFrameStart, vFrameStart};
+    BYTE* refFrameOffsets[6] = {referenceFrameBuffer, referenceFrameBuffer, referenceFrameBuffer, referenceFrameBuffer, 
+								referenceFrameBuffer + y_buffer_size_bytes, referenceFrameBuffer + y_buffer_size_bytes+ u_buffer_size_bytes};
+    
+
+    int isIframe = 1;
+    //start encoding loop
+    for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
+    {
+	cout << "Encoding frame number: " << frame_num << endl;
+	//read a frame from input file into the frameBuffer
+	fread(frameBuffer, framesize, 1, inputFileptr);
+
+	// std::copy(std::begin(frameBuffer), std::end(frameBuffer), std::begin(lastIFrameBuffer));
+
+	//loop accross blocks
+	for (macroblock_Ypos = 0; macroblock_Ypos < Y_frame_height; macroblock_Ypos += 16)
+	    for (macroblock_Xpos = 0; macroblock_Xpos < Y_frame_width; macroblock_Xpos += 16)
+	    {
+		//load individual blocks into current_blocks
+		for (int block_y = 0; block_y < 8; block_y++)
+		    for (int block_x = 0; block_x < 8; block_x++)
+		    {
+				//Y block 0
+				current_blocks[0].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width);
+
+				//Y block 1
+				current_blocks[1].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width);
+
+				//Y block 2
+				current_blocks[2].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
+
+				//Y block 3
+				current_blocks[3].data[block_x][block_y] = *(frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width);
+
+				//u block
+				current_blocks[4].data[block_x][block_y] = *(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
+
+				//v block
+				current_blocks[5].data[block_x][block_y] = *(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2);
+				
+			}
+		//macroblock processing
+		//loop accross all blocks in the macroblock
+		MV mv;
+		mv.x = 0;
+		mv.y = 0;
+		int blockOffsets[6] = {
+			0 + (macroblock_Xpos) + (macroblock_Ypos) * Y_frame_width,
+			0 + (macroblock_Xpos + 8) + (macroblock_Ypos) * Y_frame_width,
+			0 + (macroblock_Xpos) + (macroblock_Ypos + 8) * Y_frame_width,
+			0 + (macroblock_Xpos + 8) + (macroblock_Ypos + 8) * Y_frame_width,
+			y_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
+			y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
+		};
+		if (false)//TODO calculate mvs
+		{
+			// mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
+			writeMotionVector(mv,OutputFile);
+		}
+
+		for (int block_index = 0; block_index < 6; block_index++)
+		{
+			
+			if (!isIframe) //to mv or not to mv
+		    {
+				//TODO revise this
+				//gets best match block using the motion vector
+				Block refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  (mv.x*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mv.y*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
+				Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
+			}
+
+			int outBlock[8][8];
+		    //to store the block after it's  decoding
+			int codec[8][8];
+			//DCT
+			Compute_DCT(current_blocks[block_index].data, outBlock);
+			//Quantization
+			Compute_quantization(outBlock, outBlock);
+			// inverse Quantization
+			Compute_Inverse_quantization(outBlock, codec);
+			//IDCT 
+			Compute_idct(codec, codec);
+			//Zigzag and run length
+			run_length_table = Compute_VLC(outBlock);
+			cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
+				//write coefficient into output file
+			writeEncodedMacroblock(run_length_table, OutputFile);
+
+			set8x8Block(codec, referenceFrameBuffer, frameWidths[block_index], blockOffsets[block_index]);   
+
+		}
+		// isIframe = 0;
+
+	    } //end macroblock loop
+
+    } //end frame loop
+
+    //free allocated memory
+    delete frameBuffer;
+    fclose(OutputFile);
+    //	free(outputEncodedStream);
+
+    return;
+}
+
+
+
+///////////////////////////////////////////////////////// DECODE //////////////////////////
+
+//Inverse ZigZag scan
+//read number of coefficients from rle (number = length), store the coefficients in output_block
+void Compute_inverseZigzag(vector<int> rle, int num_coefficients, int output_block[8][8])
+{
+    memset(output_block, 0, sizeof(int) * 8 * 8); //initialzie the output_block to zeros
+    int zigzag_scaned_values[64];
+
+    //loop for all number of coefficients
+    int run_num; //number of zeros before a non-zero value
+    int level;   // non-zero value
+    //int zigzag_scaned_values_index;
+    int zigzag_ordered_index;
+
+    //initalization
+    zigzag_ordered_index = 0;
+    memset(zigzag_scaned_values, 0, sizeof(int) * 64);
+
+    for (int coefficient_index = 0; coefficient_index < num_coefficients; coefficient_index += 2) //read two at a time
+    {
+	run_num = rle[coefficient_index];
+	level = rle[coefficient_index + 1];
+
+	//fill the zigzag_scaned_values array
+	for (int zero_coefficient_count = 0; zero_coefficient_count < run_num; zero_coefficient_count++)
+	{
+	    zigzag_scaned_values[zigzag_ordered_index] = 0;
+	    zigzag_ordered_index++;
+	}
+	//fill level
+	zigzag_scaned_values[zigzag_ordered_index] = level;
+	zigzag_ordered_index++;
+
+	//countinue with next coefficient pair
+    }
+
+    //now  zigzag_scaned_values has the coefficients in zigzag order, need to convert them to normal order in 8x8 block
+
+    for (int col_index = 0; col_index < 8; col_index++)
+	for (int row_index = 0; row_index < 8; row_index++)
+	{
+	    zigzag_ordered_index = zigzag_order[col_index][row_index];
+	    output_block[col_index][row_index] = zigzag_scaned_values[zigzag_ordered_index];
+	}
+}
+
+
 
 //Assume encoded file is QCIF resolution (176 x 144)
 void Decode_Video_File()
