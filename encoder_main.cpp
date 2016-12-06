@@ -653,8 +653,7 @@ void Encode_Video_File()
 			Compute_idct(codec, codec);
 			//Zigzag and run length
 			run_length_table = Compute_VLC(outBlock);
-			if(frame_num == 1)
-				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
+			cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
 	
 			// cout << "size of vlc "<<run_length_table.size() << ' ' ;
 			// for(int i=0; i<run_length_table.size(); ++i)
@@ -929,9 +928,9 @@ void Decode_Video_File()
 			}
 			//store last decoded frame to be used for motion compansation in the next frame
 			copy(yuv_frameBuffer, yuv_frameBuffer + framesize, referenceFrameBuffer);
-			isIframe = 0;
 		} //frame loop completed
 		
+		isIframe = 0;
 		fwrite(yuv_frameBuffer, framesize, 1, output_file);
 		frame_num++;		
 		
