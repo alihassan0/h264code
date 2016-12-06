@@ -15,8 +15,8 @@
 - decode  subtraction block
 - add addition module
 - use last Pframe instead of b framesize 
- 
-
+- when decoding I need  to store I frame
+--- DONE
 */
 typedef __int8_t MyDataSize;
 using namespace std;
@@ -188,10 +188,10 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
     Block block;
     for (int j = 0; j < 8; j++)
     {
-	for (int i = 0; i < 8; i++)
-	{
-	    block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
-	}
+		for (int i = 0; i < 8; i++)
+		{
+			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
+		}
     }
     return block;
 }
@@ -515,7 +515,18 @@ void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8
     {
 		for (int j = 0; j < 8; j++)
 		{
-			outMatrix[i][j] = matrix1[i][j] * matrix1[i][j];
+			outMatrix[i][j] = matrix1[i][j] - matrix1[i][j];
+		}
+    }
+}
+
+void Compute_Additions(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8][8])
+{
+    for (int i = 0; i < 8; i++)
+    {
+		for (int j = 0; j < 8; j++)
+		{
+			outMatrix[i][j] = matrix1[i][j] + matrix1[i][j];
 		}
     }
 }
@@ -635,6 +646,7 @@ void Encode_Video_File()
 		current_blocks[0].type = 'y';
 		//get the best motion vector
 		MV mv = Compute_MV(current_blocks[0], lastIFrameBuffer);
+		writeMotionVector(mv,OutputFile);
 		for (int block_index = 0; block_index < 6; block_index++)
 		{
 			
@@ -676,7 +688,6 @@ void Encode_Video_File()
 				//Zigzag and run length
 				run_length_table = Compute_VLC(outBlock);
 
-				writeMotionVector(mv,OutputFile);
 				writeEncodedMacroblock(run_length_table, OutputFile);
 		    }
 		}
@@ -742,7 +753,55 @@ void Compute_inverseZigzag(vector<int> rle, int num_coefficients, int output_blo
 	    output_block[col_index][row_index] = zigzag_scaned_values[zigzag_ordered_index];
 	}
 }
+void getBestmatch(int x,int y,int mvX,int  mvY,MyDataSize *fileBuffer)
+{
+	// BYTE data[8][8];
 
+	// offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width;
+	// offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
+	// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+	// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+	
+	// //Y block 1
+	// mvX = fileBuffer[mvIndex+2];mvY = fileBuffer[mvIndex+3];
+	// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+	// offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width;
+	// offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
+	// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+	// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+	
+	// //Y block 2
+	// mvX = fileBuffer[mvIndex+4];mvY = fileBuffer[mvIndex+5];
+	// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+	// offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
+	// offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
+	// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+	// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+	
+	// //Y block 3
+	// mvX = fileBuffer[mvIndex+6];mvY = fileBuffer[mvIndex+7];
+	// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+	// offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
+	// offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
+	// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+	// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+	
+	// //u block
+	// mvX = fileBuffer[mvIndex+8];mvY = fileBuffer[mvIndex+9];
+	// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+	// offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
+	// offsetUMV = y_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 + mvY*8 + block_y) * (Y_frame_width / 2);
+	// // *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
+	// *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
+	
+	// //v block
+	// mvX = fileBuffer[mvIndex+10];mvY = fileBuffer[mvIndex+11];
+	// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+	// offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
+	// offsetVMV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 +  mvY*8 +block_y) * (Y_frame_width / 2);
+	// // *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
+	// *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
+}
 
 //Assume encoded file is QCIF resolution (176 x 144)
 void Decode_Video_File()
@@ -805,137 +864,137 @@ void Decode_Video_File()
     int frame_num = 0;
     int num_macroblock_per_row = Y_frame_width / 16;
 
-	
-	cout << "decoding frame I " << frame_num << endl;
-	//frame loop: loop accross macroblocks in the whole QCIF frame
-	for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
+	while (coefficient_index < total_num_encoded_coefficients)  //loop accross the whole input file 
 	{
-
-		macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
-		macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
-		cout << "macroblock#: " << macroblock_number << " xPos,yPos: " << macroblock_Xpos << "," << macroblock_Ypos << endl;
-		//macroblock loop: loop accross all blocks for a single macroblock
-		for (block_num = 0; block_num < 6; block_num++)
-		{
-		//RLE sequence for each block
-		inputBlock.clear();
-		number_block_coefficients = fileBuffer[coefficient_index];
-		coefficient_index++; //advance index to point to next coefficient in the fileBuffer
-		cout << "reading block # " << block_num << " number of coefficients is: " << number_block_coefficients << endl;
-		for (int j = 0; j < number_block_coefficients; j++)
-		{
-			inputBlock.push_back(fileBuffer[coefficient_index + j]);
-		}
-		Compute_inverseZigzag(inputBlock, number_block_coefficients, current_blocks[block_num]);
-		Compute_Inverse_quantization(current_blocks[block_num], current_blocks[block_num]);
-		Compute_idct(current_blocks[block_num], current_blocks[block_num]);
-		coefficient_index += number_block_coefficients;
-		} //macroblock loop
-
-		//copy macroblock into frame buffer
-		//load individual blocks into current_blocks
-		//might need clipping here
-		for (int block_y = 0; block_y < 8; block_y++)
-		for (int block_x = 0; block_x < 8; block_x++)
-		{
-			//Y block 0
-			*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
-			//Y block 1
-			*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
-			//Y block 2
-			*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
-			//Y block 3
-			*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
-			//u block
-			*(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
-			//v block
-			*(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
-		}
-
-	} //frame loop completed
-	
-	fwrite(yuv_frameBuffer, framesize, 1, output_file);
-	frame_num++;		
-	
-	BYTE *new_yuv_frameBuffer = new BYTE[framesize];
-	MyDataSize mvX, mvY;
-	int offsetY = 0, offsetU = 0, offsetV = 0;
-	int offsetYMV = 0, offsetUMV = 0, offsetVMV = 0;
-	//TODO get the size dynamically
-	int mvIndex = coefficient_index;
-	int btngan = 0;
-	for (int32_t i = 0; i < 299; i++)
-	{
+		cout << "decoding frame I " << frame_num << endl;
+		//frame loop: loop accross macroblocks in the whole QCIF frame
 		for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
 		{
+
 			macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
 			macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
-			for (int block_y = 0; block_y < 8; block_y++)
+			cout << "macroblock#: " << macroblock_number << " xPos,yPos: " << macroblock_Xpos << "," << macroblock_Ypos << endl;
+			
+			//get mvX, mvY per loop. 
+			int mvX = fileBuffer[coefficient_index++],mvY = fileBuffer[coefficient_index++];
+			//macroblock loop: loop accross all blocks for a single macroblock
+			for (block_num = 0; block_num < 6; block_num++)
 			{
-				for (int block_x = 0; block_x < 8; block_x++)
-				{
-					btngan ++;		
-					//Y block 0
-					mvX = fileBuffer[mvIndex+0];mvY = fileBuffer[mvIndex+1];
-					Block frameBlock = get8x8Block(yuv_frameBuffer, Y_frame_width, macroblock_Xpos, macroblock_Ypos);
-					Block mvBlock = get8x8Block(yuv_frameBuffer, Y_frame_width, macroblock_Xpos+ mvX*8, macroblock_Ypos + mvY*8);
-					int sad = Compute_SAD(frameBlock.data, mvBlock.data);
-	    
-					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-					offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width;
-					offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
-					// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-					
-					//Y block 1
-					mvX = fileBuffer[mvIndex+2];mvY = fileBuffer[mvIndex+3];
-					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-					offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width;
-					offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
-					// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-					
-					//Y block 2
-					mvX = fileBuffer[mvIndex+4];mvY = fileBuffer[mvIndex+5];
-					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-					offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
-					offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
-					// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-					
-					//Y block 3
-					mvX = fileBuffer[mvIndex+6];mvY = fileBuffer[mvIndex+7];
-					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-					offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
-					offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
-					// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-					*(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-					
-					//u block
-					mvX = fileBuffer[mvIndex+8];mvY = fileBuffer[mvIndex+9];
-					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-					offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
-					offsetUMV = y_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 + mvY*8 + block_y) * (Y_frame_width / 2);
-					// *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
-					*(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
-					
-					//v block
-					mvX = fileBuffer[mvIndex+10];mvY = fileBuffer[mvIndex+11];
-					// cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-					offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
-					offsetVMV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 +  mvY*8 +block_y) * (Y_frame_width / 2);
-					// *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
-					*(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
-				}
+			//RLE sequence for each block
+			inputBlock.clear();
+			number_block_coefficients = fileBuffer[coefficient_index];
+			coefficient_index++; //advance index to point to next coefficient in the fileBuffer
+			cout << "reading block # " << block_num << " number of coefficients is: " << number_block_coefficients << endl;
+			for (int j = 0; j < number_block_coefficients; j++)
+			{
+				inputBlock.push_back(fileBuffer[coefficient_index + j]);
 			}
-			mvIndex+= 12;
-			// (BYTE)(yuv_frameBuffer[macroblock_number]
-			// new_yuv_frameBuffer[macroblock_number] = *1+(1/i));
-		}
-		fwrite(new_yuv_frameBuffer, framesize, 1, output_file);
-	}
+			Compute_inverseZigzag(inputBlock, number_block_coefficients, current_blocks[block_num]);
+			Compute_Inverse_quantization(current_blocks[block_num], current_blocks[block_num]);
+			Compute_idct(current_blocks[block_num], current_blocks[block_num]);
+			// Block bestMatchBlock = get8x8Block()
+			coefficient_index += number_block_coefficients;
+			} //macroblock loop
 
-    cout << "Decoding completed: total number of decoded frames is: " << frame_num << endl;
+			//copy macroblock into frame buffer
+			//load individual blocks into current_blocks
+			//might need clipping here
+			for (int block_y = 0; block_y < 8; block_y++)
+			for (int block_x = 0; block_x < 8; block_x++)
+			{
+				//Y block 0
+				*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
+				//Y block 1
+				*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
+				//Y block 2
+				*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
+				//Y block 3
+				*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
+				//u block
+				*(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
+				//v block
+				*(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
+			}
+
+		} //frame loop completed
+		
+		fwrite(yuv_frameBuffer, framesize, 1, output_file);
+		frame_num++;		
+		
+		BYTE *new_yuv_frameBuffer = new BYTE[framesize];
+		MyDataSize mvX, mvY;
+		int offsetY = 0, offsetU = 0, offsetV = 0;
+		int offsetYMV = 0, offsetUMV = 0, offsetVMV = 0;
+		//TODO get the size dynamically
+		int mvIndex = coefficient_index;
+		for (int32_t i = 0; i < 299; i++)
+		{
+			for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
+			{
+				macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
+				macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
+				for (int block_y = 0; block_y < 8; block_y++)
+				{
+					for (int block_x = 0; block_x < 8; block_x++)
+					{
+						// //Y block 0
+						// mvX = fileBuffer[mvIndex+0];mvY = fileBuffer[mvIndex+1];
+						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+						// offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width;
+						// offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
+						// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+						// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+						
+						// //Y block 1
+						// mvX = fileBuffer[mvIndex+2];mvY = fileBuffer[mvIndex+3];
+						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+						// offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width;
+						// offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
+						// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+						// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+						
+						// //Y block 2
+						// mvX = fileBuffer[mvIndex+4];mvY = fileBuffer[mvIndex+5];
+						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+						// offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
+						// offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
+						// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+						// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+						
+						// //Y block 3
+						// mvX = fileBuffer[mvIndex+6];mvY = fileBuffer[mvIndex+7];
+						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+						// offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
+						// offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
+						// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+						// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+						
+						// //u block
+						// mvX = fileBuffer[mvIndex+8];mvY = fileBuffer[mvIndex+9];
+						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+						// offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
+						// offsetUMV = y_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 + mvY*8 + block_y) * (Y_frame_width / 2);
+						// // *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
+						// *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
+						
+						// //v block
+						// mvX = fileBuffer[mvIndex+10];mvY = fileBuffer[mvIndex+11];
+						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+						// offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
+						// offsetVMV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 +  mvY*8 +block_y) * (Y_frame_width / 2);
+						// // *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
+						// *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
+					}
+				}
+				mvIndex+= 12;
+				// (BYTE)(yuv_frameBuffer[macroblock_number]
+				// new_yuv_frameBuffer[macroblock_number] = *1+(1/i));
+			}
+			fwrite(new_yuv_frameBuffer, framesize, 1, output_file);
+		}
+
+		cout << "Decoding completed: total number of decoded frames is: " << frame_num << endl;
+	}
     fclose(output_file);
     delete[] fileBuffer;
     delete yuv_frameBuffer;
@@ -951,7 +1010,7 @@ int main(int argc, char *argv[])
     cout << "File encoding completed, press a key to continue";
     cin.get();
 
-    Decode_Video_File();
-    cout << "File decoding completed, press a key to exit";
-    cin.get();
+    // Decode_Video_File();
+    // cout << "File decoding completed, press a key to exit";
+    // cin.get();
 }
