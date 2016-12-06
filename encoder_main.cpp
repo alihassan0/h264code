@@ -224,7 +224,7 @@ void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8
     {
 		for (int j = 0; j < 8; j++)
 		{
-			outMatrix[i][j] = matrix1[i][j] - matrix2[i][j];
+			outMatrix[i][j] = matrix1[i][j];
 		}
     }
 }
@@ -235,7 +235,7 @@ void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8
     {
 		for (int j = 0; j < 8; j++)
 		{
-			outMatrix[i][j] = matrix1[i][j] + matrix1[i][j];
+			outMatrix[i][j] = matrix1[i][j] + 0;
 		}
     }
 }
@@ -653,8 +653,8 @@ void Encode_Video_File()
 				{
 					//TODO revise this
 					//gets best match block using the motion vector
-					// Block refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  (mv.x*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mv.y*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
-					// Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
+					Block refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  (mv.x*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mv.y*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
+					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
 				}
 
 				int outBlock[8][8];
@@ -846,12 +846,12 @@ void Decode_Video_File()
 		Compute_Inverse_quantization(current_blocks[block_index], current_blocks[block_index]);
 		Compute_idct(current_blocks[block_index], current_blocks[block_index]);
 
-		//add residuls to the mv block  
-		// if(!isIframe)
-		// {
-		// 	Block refFrameBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  (mvX*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mvY*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
-		// 	Compute_Additions(current_blocks[block_index], refFrameBlock.data, current_blocks[block_index]);	
-		// }
+		// add residuls to the mv block  
+		if(!isIframe)
+		{
+			Block refFrameBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  (mvX*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mvY*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
+			Compute_Additions(current_blocks[block_index], refFrameBlock.data, current_blocks[block_index]);	
+		}
 
 
 
