@@ -197,7 +197,7 @@ Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
     {
 		for (int i = 0; i < 16; i++)
 		{
-			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
+			block.data[j][i] = *(frame + (startI + i) + (startJ + j) * frameWidth);
 		}
     }
     return block;
@@ -211,7 +211,7 @@ Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
     {
 		for (int i = 0; i < 8; i++)
 		{
-			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
+			block.data[j][i] = *(frame + (startI + i) + (startJ + j) * frameWidth);
 		}
     }
     return block;
@@ -255,7 +255,7 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
 		}
     }
 
-    MV mv = {(MyDataSize)(minI/8), (MyDataSize)(minJ/8)};
+    MV mv = {(MyDataSize)(minI/16), (MyDataSize)(minJ/16)};
     return mv;
 }
 
@@ -588,7 +588,7 @@ void Encode_Video_File()
 	//array of frame widths
     int frameWidths[6] = {Y_frame_width, Y_frame_width, Y_frame_width, Y_frame_width, Y_frame_width/2, Y_frame_width/2};
 	//yyyyuv each in the format of x,y
-	int blockOffsetsXY[12] = {0,0,1,0,0,1,1,1,0,0,0,0};
+	int blockOffsetsXY[12] = {0,0,8,0,0,8,8,8,0,0,0,0};
 	
     BYTE* frameOffsets[6] = {frameBuffer, frameBuffer, frameBuffer, frameBuffer, uFrameStart, vFrameStart};
     
@@ -604,7 +604,7 @@ void Encode_Video_File()
 	for (macroblock_Ypos = 0; macroblock_Ypos < Y_frame_height; macroblock_Ypos += 16)
 	    for (macroblock_Xpos = 0; macroblock_Xpos < Y_frame_width; macroblock_Xpos += 16)
 	    {
-			char blockOffsets[6] = {
+			int blockOffsets[6] = {
 				0 + (macroblock_Xpos) + (macroblock_Ypos) * Y_frame_width,
 				0 + (macroblock_Xpos + 8) + (macroblock_Ypos) * Y_frame_width,
 				0 + (macroblock_Xpos) + (macroblock_Ypos + 8) * Y_frame_width,
@@ -616,19 +616,23 @@ void Encode_Video_File()
 		
 		//get the best motion vector
 		//NOTE it returns the position of the post match and not direction also it's for uv devide/2 
-		MV mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
-		writeMotionVector(mv,OutputFile);
+		MV mv;
+		if (!isIframe)
+		{
+			mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
+			writeMotionVector(mv,OutputFile);
+		}
 		for (int block_index = 0; block_index < 6; block_index++)
 		{
 			//load individual blocks into current_blocks
-			current_blocks[block_index] = get8x8Block(frameOffsets[block_index], frameWidths[block_index], macroblock_Xpos+ blockOffsetsXY[block_index]*2+0 , macroblock_Xpos + blockOffsetsXY[block_index]*2+1);				
+			current_blocks[block_index] = get8x8Block(frameOffsets[block_index], frameWidths[block_index], macroblock_Xpos+ blockOffsetsXY[block_index*2+0] , macroblock_Xpos + blockOffsetsXY[block_index*2+1]);				
 			int outBlock[8][8];
 
 			if (!isIframe) //to mv or not to mv
 		    {
 				//TODO revise this
 				//gets best match block using the motion vector
-				Block refFrameBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  (mv.x*16+macroblock_Xpos+ blockOffsetsXY[block_index]*2+0),  (mv.y*16+macroblock_Ypos+  + blockOffsetsXY[block_index]*2+1));
+				Block refFrameBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  (mv.x*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mv.y*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
 				Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
 			}
 			//to store the block after it's  decoding
@@ -829,7 +833,7 @@ void Decode_Video_File()
 	//array of frame widths
     int frameWidths[6] = {Y_frame_width, Y_frame_width, Y_frame_width, Y_frame_width, Y_frame_width/2, Y_frame_width/2};
 	//yyyyuv each in the format of x,y
-	int blockOffsetsXY[12] = {0,0,1,0,0,1,1,1,0,0,0,0};
+	int blockOffsetsXY[12] = {0,0,8,0,0,8,8,8,0,0,0,0};
 	
     BYTE* frameOffsets[6] = {yuv_frameBuffer, yuv_frameBuffer, yuv_frameBuffer, yuv_frameBuffer, uFrameStart, vFrameStart};
    
@@ -852,6 +856,15 @@ void Decode_Video_File()
 				mvY = fileBuffer[coefficient_index++];
 			}
 			
+			char blockOffsets[6] = {
+				0 + (macroblock_Xpos) + (macroblock_Ypos) * Y_frame_width,
+				0 + (macroblock_Xpos + 8) + (macroblock_Ypos) * Y_frame_width,
+				0 + (macroblock_Xpos) + (macroblock_Ypos + 8) * Y_frame_width,
+				0 + (macroblock_Xpos + 8) + (macroblock_Ypos + 8) * Y_frame_width,
+				y_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
+				y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
+			};
+		
 			//macroblock loop: loop accross all blocks for a single macroblock
 			for (block_index = 0; block_index < 6; block_index++)
 			{
@@ -872,7 +885,7 @@ void Decode_Video_File()
 				//add residuls to the mv block  
 				if(!isIframe)
 				{
-					Block refFrameBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  (mvX*16+macroblock_Xpos+ blockOffsetsXY[block_index]*2+0),  (mvY*16+macroblock_Ypos+  + blockOffsetsXY[block_index]*2+1));
+					Block refFrameBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  (mvX*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mvY*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
 					Compute_Additions(current_blocks[block_index], refFrameBlock.data, current_blocks[block_index]);	
 				}
 				// Block bestMatchBlock = get8x8Block()
@@ -883,99 +896,101 @@ void Decode_Video_File()
 			//load individual blocks into current_blocks
 			//might need clipping here
 			for (int block_y = 0; block_y < 8; block_y++)
-			for (int block_x = 0; block_x < 8; block_x++)
 			{
-				//Y block 0
-				*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
-				//Y block 1
-				*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
-				//Y block 2
-				*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
-				//Y block 3
-				*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
-				//u block
-				*(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
-				//v block
-				*(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
+
+				for (int block_x = 0; block_x < 8; block_x++)
+				{
+					//Y block 0
+					*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
+					//Y block 1
+					*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
+					//Y block 2
+					*(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
+					//Y block 3
+					*(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
+					//u block
+					*(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
+					//v block
+					*(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
+				}
 			}
 			//store last decoded frame to be used for motion compansation in the next frame
 			copy(yuv_frameBuffer, yuv_frameBuffer + framesize, referenceFrameBuffer);
+			isIframe = 0;
 		} //frame loop completed
 		
 		fwrite(yuv_frameBuffer, framesize, 1, output_file);
 		frame_num++;		
 		
-		BYTE *new_yuv_frameBuffer = new BYTE[framesize];
-		MyDataSize mvX, mvY;
-		int offsetY = 0, offsetU = 0, offsetV = 0;
-		int offsetYMV = 0, offsetUMV = 0, offsetVMV = 0;
-		//TODO get the size dynamically
-		int mvIndex = coefficient_index;
-		for (int32_t i = 0; i < 299; i++)
-		{
-			for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
-			{
-				macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
-				macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
-				for (int block_y = 0; block_y < 8; block_y++)
-				{
-					for (int block_x = 0; block_x < 8; block_x++)
-					{
-						// //Y block 0
-						// mvX = fileBuffer[mvIndex+0];mvY = fileBuffer[mvIndex+1];
-						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-						// offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width;
-						// offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
-						// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-						// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+			// BYTE *new_yuv_frameBuffer = new BYTE[framesize];
+			// MyDataSize mvX, mvY;
+			// int offsetY = 0, offsetU = 0, offsetV = 0;
+			// int offsetYMV = 0, offsetUMV = 0, offsetVMV = 0;
+			// //TODO get the size dynamically
+			// int mvIndex = coefficient_index;
+			// for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
+			// {
+			// 	macroblock_Xpos = (macroblock_number % num_macroblock_per_row) * 16;
+			// 	macroblock_Ypos = (macroblock_number / num_macroblock_per_row) * 16;
+			// 	for (int block_y = 0; block_y < 8; block_y++)
+			// 	{
+			// 		for (int block_x = 0; block_x < 8; block_x++)
+			// 		{
+			// 			// //Y block 0
+			// 			// mvX = fileBuffer[mvIndex+0];mvY = fileBuffer[mvIndex+1];
+			// 			// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+			// 			// offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width;
+			// 			// offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
+			// 			// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+			// 			// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 						
-						// //Y block 1
-						// mvX = fileBuffer[mvIndex+2];mvY = fileBuffer[mvIndex+3];
-						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-						// offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width;
-						// offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
-						// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-						// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+			// 			// //Y block 1
+			// 			// mvX = fileBuffer[mvIndex+2];mvY = fileBuffer[mvIndex+3];
+			// 			// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+			// 			// offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width;
+			// 			// offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y) * Y_frame_width;
+			// 			// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+			// 			// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 						
-						// //Y block 2
-						// mvX = fileBuffer[mvIndex+4];mvY = fileBuffer[mvIndex+5];
-						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-						// offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
-						// offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
-						// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-						// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+			// 			// //Y block 2
+			// 			// mvX = fileBuffer[mvIndex+4];mvY = fileBuffer[mvIndex+5];
+			// 			// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+			// 			// offsetY = (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
+			// 			// offsetYMV = (macroblock_Xpos + mvX*8 + block_x) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
+			// 			// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+			// 			// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 						
-						// //Y block 3
-						// mvX = fileBuffer[mvIndex+6];mvY = fileBuffer[mvIndex+7];
-						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-						// offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
-						// offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
-						// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
-						// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+			// 			// //Y block 3
+			// 			// mvX = fileBuffer[mvIndex+6];mvY = fileBuffer[mvIndex+7];
+			// 			// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+			// 			// offsetY = (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width;
+			// 			// offsetYMV = (macroblock_Xpos + mvX*8 + block_x + 8) + (macroblock_Ypos + mvY*8 + block_y + 8) * Y_frame_width;
+			// 			// // *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
+			// 			// *(new_yuv_frameBuffer + offsetY ) =*(yuv_frameBuffer+  offsetYMV );
 						
-						// //u block
-						// mvX = fileBuffer[mvIndex+8];mvY = fileBuffer[mvIndex+9];
-						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-						// offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
-						// offsetUMV = y_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 + mvY*8 + block_y) * (Y_frame_width / 2);
-						// // *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
-						// *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
+			// 			// //u block
+			// 			// mvX = fileBuffer[mvIndex+8];mvY = fileBuffer[mvIndex+9];
+			// 			// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+			// 			// offsetU = y_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
+			// 			// offsetUMV = y_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 + mvY*8 + block_y) * (Y_frame_width / 2);
+			// 			// // *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
+			// 			// *(new_yuv_frameBuffer+ offsetU)  =*(yuv_frameBuffer+ offsetUMV );
 						
-						// //v block
-						// mvX = fileBuffer[mvIndex+10];mvY = fileBuffer[mvIndex+11];
-						// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
-						// offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
-						// offsetVMV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 +  mvY*8 +block_y) * (Y_frame_width / 2);
-						// // *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
-						// *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
-					}
-				}
-				mvIndex+= 12;
-				// (BYTE)(yuv_frameBuffer[macroblock_number]
-				// new_yuv_frameBuffer[macroblock_number] = *1+(1/i));
-			}
-			fwrite(new_yuv_frameBuffer, framesize, 1, output_file);
-		}
+			// 			// //v block
+			// 			// mvX = fileBuffer[mvIndex+10];mvY = fileBuffer[mvIndex+11];
+			// 			// // cout << (int16_t)mvX << "," << (int16_t)mvY << endl;
+			// 			// offsetV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * (Y_frame_width / 2);
+			// 			// offsetVMV = y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2 + mvX*8 + block_x) + (macroblock_Ypos / 2 +  mvY*8 +block_y) * (Y_frame_width / 2);
+			// 			// // *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
+			// 			// *(new_yuv_frameBuffer+ offsetV ) =*(yuv_frameBuffer+ offsetVMV );
+			// 		}
+			// 	}
+			// 	mvIndex+= 12;
+			// 	// (BYTE)(yuv_frameBuffer[macroblock_number]
+			// 	// new_yuv_frameBuffer[macroblock_number] = *1+(1/i));
+			// }
+			// fwrite(new_yuv_frameBuffer, framesize, 1, output_file);
+		// }
 
 		cout << "Decoding completed: total number of decoded frames is: " << frame_num << endl;
 	}
