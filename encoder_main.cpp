@@ -788,6 +788,9 @@ void Decode_Video_File()
     BYTE *uFrameStart, *vFrameStart;
     uFrameStart = yuv_frameBuffer + y_buffer_size_bytes;
     vFrameStart = uFrameStart + u_buffer_size_bytes;
+	//frame to store last frame for mv compansations
+    BYTE *referenceFrameBuffer = new BYTE[framesize];
+
 
     int current_blocks[6][8][8];
     int macroblock_Xpos, macroblock_Ypos;					 //hold top-left corner of current macroblock "to be encoded"
@@ -891,6 +894,8 @@ void Decode_Video_File()
 	isIframe = 0;
 	//store frame into output file
 	fwrite(yuv_frameBuffer, framesize, 1, output_file);
+	//store last decoded frame to be used for motion compansation in the next frame
+	copy(yuv_frameBuffer, yuv_frameBuffer + framesize, referenceFrameBuffer);
 	frame_num++;
     }
 
