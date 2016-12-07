@@ -224,8 +224,14 @@ void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8
     {
 		for (int j = 0; j < 8; j++)
 		{
-			outMatrix[i][j] = (matrix1[i][j] > matrix2[i][j]) ? matrix1[i][j]- matrix2[i][j]:matrix2[i][j]- matrix1[i][j];
-			// outMatrix[i][j] = (matrix1[i][j] > matrix2[i][j]) ? matrix1[i][j]- matrix2[i][j];
+			BYTE val1 = matrix1[i][j];
+			BYTE val2 = matrix2[i][j];
+			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val2- val1);
+			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val1- val2);
+			BYTE res = 127+ (val1- val2);
+		
+			outMatrix[i][j] = res;
+			// outMatrix[i][j] = matrix1[i][j]- matrix2[i][j];
 		}
     }
 }
@@ -236,7 +242,7 @@ void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8
     {
 		for (int j = 0; j < 8; j++)
 		{
-			outMatrix[i][j] = matrix1[i][j] + matrix2[i][j];
+			outMatrix[i][j] = (matrix1[i][j]-127) + matrix2[i][j];
 			// outMatrix[i][j] = matrix2[i][j];
 		}
     }
@@ -672,6 +678,7 @@ void Encode_Video_File()
 				Compute_Inverse_quantization(outBlock, codec);
 				//IDCT 
 				Compute_idct(codec, codec);
+				
 				set8x8Block(codec, referenceFrameBuffer, frameWidths[block_index], blockOffsets[block_index]);   				
 
 				// encode the diffrence if it's an Iframe
