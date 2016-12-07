@@ -218,17 +218,17 @@ Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
 //matrix1 current frame block
 //matrix2 deoceded reference frame  block
 //outMatrix output 
-void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8][8])
+void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8])
 {
     for (int i = 0; i < 8; i++)
     {
 		for (int j = 0; j < 8; j++)
 		{
-			BYTE val1 = matrix1[i][j];
-			BYTE val2 = matrix2[i][j];
-			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val2- val1);
+			int val1 = (int)matrix1[i][j];
+			int val2 = (int)matrix2[i][j];
+			// BYTE res = (val1 > val2) ? val1- val2: val2- val1;
 			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val1- val2);
-			BYTE res = 127+ (val1- val2);
+			int res =(int)(val1- val2);
 		
 			outMatrix[i][j] = res;
 			// outMatrix[i][j] = matrix1[i][j]- matrix2[i][j];
@@ -236,14 +236,27 @@ void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8
     }
 }
 
-void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8])
+void Compute_Additions(int matrix1[8][8], Block matrix2, BYTE outMatrix[8][8])
 {
     for (int i = 0; i < 8; i++)
     {
 		for (int j = 0; j < 8; j++)
 		{
-			outMatrix[i][j] = (matrix1[i][j]-127) + matrix2[i][j];
+			int val1 = (int)matrix1[i][j];
+			int val2 = (int)matrix2.data[i][j];
+			int res = val1+val2;
+			outMatrix[i][j] = res;
 			// outMatrix[i][j] = matrix2[i][j];
+		}
+    }
+}
+void byteToInt(int intMatrix[8][8], BYTE byteMatrix[8][8])
+{
+    for (int i = 0; i < 8; i++)
+    {
+		for (int j = 0; j < 8; j++)
+		{
+			intMatrix[i][j] = byteMatrix[i][j];
 		}
     }
 }
@@ -283,9 +296,9 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
 //DCT on 8x8 block
 //Input   8x8 spatial block
 //Output  8x8 DCT-Transformed block
-void Compute_DCT(BYTE input_block[8][8], int output_block[8][8])
+void Compute_DCT(int input_block[8][8], int output_block[8][8])
 {
-    BYTE block[64];
+    int block[64];
     double coeff[64];
 
     int m = 0;
@@ -670,8 +683,9 @@ void Encode_Video_File()
 				}
 
 				//encode then decode then store this current block to be used next frame
+				byteToInt(outBlock ,current_blocks[block_index].data);
 				//DCT
-				Compute_DCT(current_blocks[block_index].data, outBlock);
+				Compute_DCT(outBlock , outBlock);
 				//Quantization
 				Compute_quantization(outBlock, outBlock);
 				// inverse Quantization
@@ -687,16 +701,21 @@ void Encode_Video_File()
 					//TODO revise this
 					//gets best match block using the motion vector
 					// Block refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  (mv.x*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mv.y*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
-					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
+					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, outBlock);				
 				}
 				//DCT
-				Compute_DCT(current_blocks[block_index].data, outBlock);
+				Compute_DCT(outBlock, outBlock);
 				//Quantization
 				Compute_quantization(outBlock, outBlock);
 				
 				
 				//Zigzag and run length
 				run_length_table = Compute_VLC(outBlock);
+				// cout << "num of Coeffecients = " << run_length_table.size();
+				for(int i=0; i<run_length_table.size(); ++i)
+  					cout << run_length_table[i] << ' ';
+				cout << endl;
+
 				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
 					//write coefficient into output file
 				writeEncodedMacroblock(run_length_table, OutputFile);
@@ -821,7 +840,9 @@ void Decode_Video_File()
 
 
     int current_blocks[6][8][8];
-    int macroblock_Xpos, macroblock_Ypos;					 //hold top-left corner of current macroblock "to be encoded"
+	Block outBlock; 
+    
+	int macroblock_Xpos, macroblock_Ypos;					 //hold top-left corner of current macroblock "to be encoded"
     int number_macroblocks_per_frame = Y_frame_width / 16 * Y_frame_height / 16; //assume YUV 420
 
     //int i;
@@ -874,6 +895,11 @@ void Decode_Video_File()
 		{
 		    inputBlock.push_back(fileBuffer[coefficient_index + j]);
 		}
+		
+		for(int i=0; i<inputBlock.size(); ++i)
+			cout << inputBlock[i] << ' ';
+		cout << endl;
+
 		Compute_inverseZigzag(inputBlock, number_block_coefficients, current_blocks[block_index]);
 		Compute_Inverse_quantization(current_blocks[block_index], current_blocks[block_index]);
 		Compute_idct(current_blocks[block_index], current_blocks[block_index]);
@@ -884,7 +910,7 @@ void Decode_Video_File()
 		{
 			// Block bestMatchBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
 			Block bestMatchBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*8+  + blockOffsetsXY[block_index*2+1]));
-			Compute_Additions(current_blocks[block_index], bestMatchBlock.data, current_blocks[block_index]);	
+			Compute_Additions(current_blocks[block_index], bestMatchBlock, outBlock.data);	
 		}
 
 
@@ -910,24 +936,24 @@ void Decode_Video_File()
 		for (int block_x = 0; block_x < 8; block_x++)
 		{
 		    //Y block 0
-		    *(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[0][block_x][block_y];
+		    *(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y) * Y_frame_width) = outBlock.data[block_x][block_y];
 		    //Y block 1
-		    *(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = current_blocks[1][block_x][block_y];
+		    *(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y) * Y_frame_width) = outBlock.data[block_x][block_y];
 		    //Y block 2
-		    *(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[2][block_x][block_y];
+		    *(yuv_frameBuffer + (macroblock_Xpos + block_x) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = outBlock.data[block_x][block_y];
 		    //Y block 3
-		    *(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = current_blocks[3][block_x][block_y];
+		    *(yuv_frameBuffer + (macroblock_Xpos + block_x + 8) + (macroblock_Ypos + block_y + 8) * Y_frame_width) = outBlock.data[block_x][block_y];
 		    //u block
-		    *(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[4][block_x][block_y];
+		    *(uFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = outBlock.data[block_x][block_y];
 		    //v block
-		    *(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = current_blocks[5][block_x][block_y];
+		    *(vFrameStart + (macroblock_Xpos / 2 + block_x) + (macroblock_Ypos / 2 + block_y) * Y_frame_width / 2) = outBlock.data[block_x][block_y];
 		}
 
 	} //frame loop completed
 	isIframe = 0;
 	//store frame into output file
-	fwrite(yuv_frameBuffer, framesize, 1, output_file);
 	//store last decoded frame to be used for motion compansation in the next frame
+	fwrite(yuv_frameBuffer, framesize, 1, output_file);
 	copy(yuv_frameBuffer, yuv_frameBuffer + framesize, referenceFrameBuffer);
 	frame_num++;
     }
