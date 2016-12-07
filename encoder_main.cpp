@@ -7,6 +7,7 @@
 #include <cstring>
 #include <vector>
 #include <cstdlib>
+#include <bitset>
 
 typedef __int8_t MyDataSize;
 using namespace std;
@@ -224,13 +225,22 @@ void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8
     {
 		for (int j = 0; j < 8; j++)
 		{
-			BYTE val1 = matrix1[i][j];
-			BYTE val2 = matrix2[i][j];
+			int val1 = matrix1[i][j];
+			int val2 = matrix2[i][j];
 			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val2- val1);
 			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val1- val2);
-			BYTE res = 127+ (val1- val2);
+			int diff = (val1- val2);
+			bitset<32> x(diff);
+			// cout << x << endl;
+			
+			int res = 127+ ((diff>>1));
+			
+			bitset<8> y(res);
+			// cout << y << endl;
 		
-			outMatrix[i][j] = res;
+			outMatrix[i][j] = (BYTE)res;
+			
+			
 			// outMatrix[i][j] = matrix1[i][j]- matrix2[i][j];
 		}
     }
@@ -242,7 +252,17 @@ void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8
     {
 		for (int j = 0; j < 8; j++)
 		{
-			outMatrix[i][j] = (matrix1[i][j]-127) + matrix2[i][j];
+			BYTE asd = matrix1[i][j];
+			bitset<8> x(1);
+			// cout << x << endl;
+			
+			bitset<8> y(asd);
+			// cout << y << endl;
+			
+			int16_t btn = -127;
+			int16_t asds = btn+asd;
+			int res =  asds<<1;
+			outMatrix[i][j] = res + matrix2[i][j];
 			// outMatrix[i][j] = matrix2[i][j];
 		}
     }
