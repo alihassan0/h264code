@@ -176,6 +176,17 @@ int Compute_SAD(BYTE block1[16][16], BYTE block2[16][16])
     return sadValue;
 }
 
+void bytoArrayToIntArray(int intBlock[8][8], BYTE
+ byteBlock[8][8])
+{
+    for (int j = 0; j < 8; j++)
+    {
+		for (int i = 0; i < 8; i++)
+		{
+			 intBlock[i][j] = (int)byteBlock[i][j];
+		}
+    }
+}
 Block get8x8Block(BYTE *frame, int frameWidth, int startI, int startJ)
 {
     Block block;
@@ -220,7 +231,7 @@ Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
 //matrix1 current frame block
 //matrix2 deoceded reference frame  block
 //outMatrix output 
-void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8][8])
+void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8])
 {
     for (int i = 0; i < 8; i++)
     {
@@ -231,18 +242,9 @@ void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8
 			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val2- val1);
 			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val1- val2);
 			int diff = (val1- val2);
-			bitset<32> x(diff);
-			// cout << x << endl;
-			
-			int res = 127+ ((diff>>1));
-			
-			bitset<8> y(res);
-			// cout << y << endl;
+
 		
-			outMatrix[i][j] = (BYTE)res;
-			
-			
-			// outMatrix[i][j] = matrix1[i][j]- matrix2[i][j];
+			outMatrix[i][j] = diff;
 		}
     }
 }
@@ -253,17 +255,7 @@ void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8
     {
 		for (int j = 0; j < 8; j++)
 		{
-			BYTE asd = matrix1[i][j];
-			bitset<8> x(1);
-			// cout << x << endl;
-			
-			bitset<8> y(asd);
-			// cout << y << endl;
-			
-			int16_t btn = -127;
-			int16_t asds = btn+asd;
-			int res =  asds<<1;
-			outMatrix[i][j] = res + matrix2[i][j];
+			outMatrix[i][j] = matrix1[i][j] + matrix2[i][j];
 			outMatrix[i][j] = outMatrix[i][j]> 255? 255: outMatrix[i][j] < 0 ? 0: outMatrix[i][j];
 		}
     }
@@ -304,9 +296,9 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
 //DCT on 8x8 block
 //Input   8x8 spatial block
 //Output  8x8 DCT-Transformed block
-void Compute_DCT(BYTE input_block[8][8], int output_block[8][8])
+void Compute_DCT(int input_block[8][8], int output_block[8][8])
 {
-    BYTE block[64];
+    int block[64];
     double coeff[64];
 
     int m = 0;
@@ -687,15 +679,17 @@ void Encode_Video_File()
 				int codec[8][8];
 
 				Block refFrameBlock;
+				bytoArrayToIntArray(outBlock, current_blocks[block_index].data);
+
 				if (!isIframe) //to mv or not to mv
 				{
 					refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mv.x*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mv.y*mvMultipliers[block_index])*8+  + blockOffsetsXY[block_index*2+1]));
-					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
+					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, outBlock);				
 				}
 
 				//encode then decode then store this current block to be used next frame
 				//DCT
-				Compute_DCT(current_blocks[block_index].data, outBlock);
+				Compute_DCT(outBlock, outBlock);
 				//Quantization
 				Compute_quantization(outBlock, outBlock);
 				//Zigzag and run length
