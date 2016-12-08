@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <bitset>
 
-typedef __int8_t MyDataSize;
+typedef __int16_t MyDataSize;
 using namespace std;
 typedef unsigned char BYTE;
 typedef struct Block
@@ -55,6 +55,7 @@ int y_buffer_size_bytes;
 int u_buffer_size_bytes;
 int v_buffer_size_bytes;
 int framesize;
+int numOfPFrames = 300;
 
 int zigzag_order[8][8] = {
     {0, 1, 5, 6, 14, 15, 27, 28},
@@ -263,7 +264,7 @@ void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8
 			int16_t asds = btn+asd;
 			int res =  asds<<1;
 			outMatrix[i][j] = res + matrix2[i][j];
-			// outMatrix[i][j] = matrix2[i][j];
+			outMatrix[i][j] = outMatrix[i][j]> 255? 255: outMatrix[i][j] < 0 ? 0: outMatrix[i][j];
 		}
     }
 }
@@ -620,10 +621,12 @@ void Encode_Video_File()
 								referenceFrameBuffer + y_buffer_size_bytes, referenceFrameBuffer + y_buffer_size_bytes+ u_buffer_size_bytes};
     
 
-    int isIframe = 1;
+    int isIframe;
     //start encoding loop
     for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
 	{
+		isIframe = (frame_num%numOfPFrames== 0) ? 1: 0;
+		
 		cout << "Encoding frame number: " << frame_num << endl;
 		//read a frame from input file into the frameBuffer
 		fread(frameBuffer, framesize, 1, inputFileptr);
@@ -687,6 +690,7 @@ void Encode_Video_File()
 				if (!isIframe) //to mv or not to mv
 				{
 					refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mv.x*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mv.y*mvMultipliers[block_index])*8+  + blockOffsetsXY[block_index*2+1]));
+					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
 				}
 
 				//encode then decode then store this current block to be used next frame
@@ -694,39 +698,29 @@ void Encode_Video_File()
 				Compute_DCT(current_blocks[block_index].data, outBlock);
 				//Quantization
 				Compute_quantization(outBlock, outBlock);
+				//Zigzag and run length
+				run_length_table = Compute_VLC(outBlock);
+				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
+				//write coefficient into output file
+				writeEncodedMacroblock(run_length_table, OutputFile);
+
 				// inverse Quantization
 				Compute_Inverse_quantization(outBlock, codec);
 				//IDCT 
 				Compute_idct(codec, codec);
 				
+				Compute_Additions(codec, refFrameBlock.data, codec);
+
 				set8x8Block(codec, referenceFrameBuffer, frameWidths[block_index], blockOffsets[block_index]);   				
 
-				// encode the diffrence if it's an Iframe
-				if (!isIframe) //to mv or not to mv
-				{
-					//TODO revise this
-					//gets best match block using the motion vector
-					// Block refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  (mv.x*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  (mv.y*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
-					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
-				}
-				//DCT
-				Compute_DCT(current_blocks[block_index].data, outBlock);
-				//Quantization
-				Compute_quantization(outBlock, outBlock);
+				// encode the diffrence if it's an Iframe				
 				
-				
-				//Zigzag and run length
-				run_length_table = Compute_VLC(outBlock);
-				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
-					//write coefficient into output file
-				writeEncodedMacroblock(run_length_table, OutputFile);
 
 				
 			}
 
 			} //end macroblock loop
 
-			isIframe = 0;
 			fwrite(referenceFrameBuffer, framesize, 1, testFile);
     } //end frame loop
 
@@ -852,7 +846,7 @@ void Decode_Video_File()
     vector<int> inputBlock;
     coefficient_index = 0;
     int frame_num = 0;
-	int isIframe = 1;
+	int isIframe;
 	int mvX, mvY;
 	BYTE* frameOffsets[6] = {yuv_frameBuffer, yuv_frameBuffer, yuv_frameBuffer, yuv_frameBuffer, uFrameStart, vFrameStart};
 	BYTE* refFrameOffsets[6] = {referenceFrameBuffer, referenceFrameBuffer, referenceFrameBuffer, referenceFrameBuffer, 
@@ -867,6 +861,8 @@ void Decode_Video_File()
     int num_macroblock_per_row = Y_frame_width / 16;
     while (coefficient_index < total_num_encoded_coefficients) //loop accross the whole input file
     {
+		isIframe = (frame_num%numOfPFrames== 0) ? 1: 0;
+		
 	cout << "decoding frame number " << frame_num << endl;
 	//frame loop: loop accross macroblocks in the whole QCIF frame
 	for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
