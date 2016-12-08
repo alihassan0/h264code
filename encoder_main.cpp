@@ -709,8 +709,9 @@ void Encode_Video_File()
 				//IDCT 
 				Compute_idct(codec, codec);
 				
-				Compute_Additions(codec, refFrameBlock.data, codec);
-
+				if (!isIframe) //to mv or not to mv
+					Compute_Additions(codec, refFrameBlock.data, codec);
+				
 				set8x8Block(codec, referenceFrameBuffer, frameWidths[block_index], blockOffsets[block_index]);   				
 
 				// encode the diffrence if it's an Iframe				
