@@ -148,6 +148,7 @@ vector<int> Compute_VLC(int block[8][8])
 void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
     int Quant_parameter = 2;
+
     for (int i = 0; i < 8; i++)
     {
 	for (int j = 0; j < 8; j++)
@@ -284,7 +285,7 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
     int offset = 0;
     int maxWidth = Y_frame_width;
     int maxHeight = Y_frame_height;    
-    int minValue = 65535;
+    int minValue = -1;
     BYTE minI = 0, minJ = 0;
 
     for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 16)
@@ -293,7 +294,7 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
 		{
 			Block16x16 frameBlock = get16x16Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
 			int sad = Compute_SAD(block.data, frameBlock.data);
-			if (sad < minValue && abs(block.x - frameBlock.x) < 32 && abs(block.y - frameBlock.y) < 16)
+			if ((minValue < 0 ||sad <= minValue) && abs(block.x - frameBlock.x) < 16 && abs(block.y - frameBlock.y) < 16)
 			{
 				minI = macroblock_Xpos;
 				minJ = macroblock_Ypos;
@@ -625,8 +626,11 @@ void Encode_Video_File()
     BYTE* refFrameOffsets[6] = {referenceFrameBuffer, referenceFrameBuffer, referenceFrameBuffer, referenceFrameBuffer, 
 								referenceFrameBuffer + y_buffer_size_bytes, referenceFrameBuffer + y_buffer_size_bytes+ u_buffer_size_bytes};
     
-
+	ofstream myfile;
+	myfile.open ("output/input.txt");
+	
     int isIframe;
+	
     //start encoding loop
     for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
 	{
@@ -683,13 +687,15 @@ void Encode_Video_File()
 				mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
 				// mv.x = 6;//rand() % 11;//macroblock_Xpos >> 4;
 				// mv.y = 6;//rand() % 9 ;//macroblock_Ypos >> 4;
-				if(mv.x < 10)
-					mv.x = 1+(macroblock_Xpos >> 4);
-				if(mv.y < 8)					
-				mv.y = 1+(macroblock_Ypos >> 4);
+				// if((macroblock_Xpos >> 4) < 5)
+				// 	mv.x =0;
+				// if(mv.y > 0 && mv.y < 9-3)					
+				// mv.y = -1+(rand() % 2 )+(macroblock_Ypos >> 4);
 				 
 
 				writeMotionVector(mv,OutputFile);
+				// myfile << (int)mv.x << ' ' << (int)mv.y<< '\n' ;
+	
 			}
 
 			for (int block_index = 0; block_index < 6; block_index++)
@@ -702,7 +708,16 @@ void Encode_Video_File()
 				Block refFrameBlock;
 				if (!isIframe) //to mv or not to mv
 				{
-					refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mv.x*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mv.y*mvMultipliers[block_index])*8+  + blockOffsetsXY[block_index*2+1]));
+					refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mv.x*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  (mv.y*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+1]);
+					myfile << (int)frame_num << ' ' << block_index << ' ' << (int)mv.x << ' ' << (int)mv.y << ' ' << ((mv.x*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]) << ' ' << (mv.y*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+1] << '\n' ;				
+					for (int8_t i = 0; i < 8; i++)
+					{
+						for (int8_t j = 0; j < 8; j++)
+						{
+							myfile << (int)refFrameBlock.data[i][j] << ' ';
+						}
+					}
+					myfile << '\n' ;
 					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);
 				}
 
@@ -711,9 +726,10 @@ void Encode_Video_File()
 				Compute_DCT(current_blocks[block_index].data, outBlock);
 				//Quantization
 				Compute_quantization(outBlock, outBlock);
+				
+				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
 				//Zigzag and run length
 				run_length_table = Compute_VLC(outBlock);
-				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
 				//write coefficient into output file
 				writeEncodedMacroblock(run_length_table, OutputFile);
 
@@ -741,6 +757,8 @@ void Encode_Video_File()
     //free allocated memory
     delete frameBuffer;
     fclose(OutputFile);
+	myfile.close();
+	
 	fclose(testFile);
     //	free(outputEncodedStream);
 
@@ -873,6 +891,9 @@ void Decode_Video_File()
 	
 
     int num_macroblock_per_row = Y_frame_width / 16;
+	ofstream myfile;
+	myfile.open ("output/output.txt");
+	
     while (coefficient_index < total_num_encoded_coefficients) //loop accross the whole input file
     {
 		isIframe = (frame_num%numOfPFrames== 0) ? 1: 0;
@@ -890,6 +911,8 @@ void Decode_Video_File()
 		{
 			mvX = fileBuffer[coefficient_index++];
 			mvY = fileBuffer[coefficient_index++];
+			// myfile << (int)mvX << ' ' << (int)mvY<< '\n' ;
+	
 		}
 		
 		//macroblock loop: loop accross all blocks for a single macroblock
@@ -913,13 +936,18 @@ void Decode_Video_File()
 		if(!isIframe)
 		{
 			// Block bestMatchBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
-			Block bestMatchBlock = 	get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*8+  + blockOffsetsXY[block_index*2+1]));			
+			Block bestMatchBlock = 	get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+1]));			
+			myfile << (int)frame_num << ' ' << block_index << ' ' << (int)mvX << ' ' << (int)mvY << ' ' << ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]) << ' ' << (mvY*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+1] << '\n' ;
+			for (int8_t i = 0; i < 8; i++)
+			{
+				for (int8_t j = 0; j < 8; j++)
+				{
+					myfile << (int)bestMatchBlock.data[i][j] << ' ';
+				}
+			}
+			myfile << '\n' ;
 			Compute_Additions(current_blocks[block_index], bestMatchBlock.data, current_blocks[block_index]);	
 		}
-
-
-
-
 
 		char blockOffsets[6] = {
 			0 + (macroblock_Xpos) + (macroblock_Ypos) * Y_frame_width,
@@ -963,6 +991,7 @@ void Decode_Video_File()
 
     cout << "Decoding completed: total number of decoded frames is: " << frame_num << endl;
     fclose(output_file);
+	myfile.close();
     delete[] fileBuffer;
     delete yuv_frameBuffer;
     //		cout << "Decoding done";
@@ -973,6 +1002,7 @@ void Decode_Video_File()
 //decode encoded.264 into decoded,yuv
 int main(int argc, char *argv[])
 {
+	
     Encode_Video_File();
     cout << "File encoding completed, press a key to continue";
     
