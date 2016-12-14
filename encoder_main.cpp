@@ -147,7 +147,7 @@ vector<int> Compute_VLC(int block[8][8])
 //Output  8x8 Quantized block
 void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
-    int Quant_parameter = 8;
+    int Quant_parameter = 2;
     for (int i = 0; i < 8; i++)
     {
 	for (int j = 0; j < 8; j++)
@@ -544,7 +544,7 @@ void Compute_idct(int inblock[8][8], int outblock[8][8])
 //Inverse quantization
 void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
-    int Quant_parameter = 8;
+    int Quant_parameter = 2;
     for (int i = 0; i < 8; i++)
     {
 	for (int j = 0; j < 8; j++)
@@ -681,8 +681,13 @@ void Encode_Video_File()
 			if (!isIframe)//TODO calculate mvs
 			{
 				mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
-				mv.x = macroblock_Xpos >> 4;
-				mv.y = macroblock_Ypos >> 4;
+				// mv.x = 6;//rand() % 11;//macroblock_Xpos >> 4;
+				// mv.y = 6;//rand() % 9 ;//macroblock_Ypos >> 4;
+				if(mv.x < 10)
+					mv.x = 1+(macroblock_Xpos >> 4);
+				if(mv.y < 8)					
+				mv.y = 1+(macroblock_Ypos >> 4);
+				 
 
 				writeMotionVector(mv,OutputFile);
 			}
@@ -949,7 +954,6 @@ void Decode_Video_File()
 		}
 
 	} //frame loop completed
-	isIframe = 0;
 	//store frame into output file
 	fwrite(yuv_frameBuffer, framesize, 1, output_file);
 	//store last decoded frame to be used for motion compansation in the next frame
