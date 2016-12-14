@@ -9,7 +9,8 @@
 #include <cstdlib>
 #include <bitset>
 
-typedef __int16_t MyDataSize;
+typedef __int8_t MyDataSize;
+
 using namespace std;
 typedef unsigned char BYTE;
 typedef struct Block
@@ -71,6 +72,14 @@ int zigzag_order[8][8] = {
 };
 
 //////////////////////////////// ENCODE //////////////////////////
+
+void writeLongValues(long signs,FILE *output_file)
+{
+    MyDataSize output_value;
+    int x = sizeof(MyDataSize);
+	//writing the value of mv.x
+	// fwrite(&signs, sizeof(long), 1, output_file);
+}
 
 void writeMotionVector(MV mv,FILE *output_file)
 {
@@ -147,7 +156,7 @@ vector<int> Compute_VLC(int block[8][8])
 //Output  8x8 Quantized block
 void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
-    int Quant_parameter = 2;
+    int Quant_parameter = 8;
 
     for (int i = 0; i < 8; i++)
     {
@@ -156,6 +165,30 @@ void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
 	    outMatrix[i][j] = inMatrix[i][j] / Quant_parameter;
 	}
     }
+}
+
+void printBlock(BYTE inMatrix[8][8])
+{
+	for (int8_t i = 0; i < 8; i++)
+	{
+		for (int8_t j = 0; j < 8; j++)
+		{
+			cout << (int)inMatrix[i][j] << ' ';
+		}
+	}
+	cout << endl;
+}
+
+void printBlock(int inMatrix[8][8])
+{
+	for (int8_t i = 0; i < 8; i++)
+	{
+		for (int8_t j = 0; j < 8; j++)
+		{
+			cout << (int)inMatrix[i][j] << ' ';
+		}
+	}
+	cout << endl;
 }
 
 
@@ -226,51 +259,45 @@ Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
 //matrix1 current frame block
 //matrix2 deoceded reference frame  block
 //outMatrix output 
-void Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8][8])
+long Compute_Diffrences(BYTE matrix1[8][8], BYTE matrix2[8][8], BYTE outMatrix[8][8])
 {
+	long  signs = 0;
     for (int i = 0; i < 8; i++)
     {
 		for (int j = 0; j < 8; j++)
 		{
 			int val1 = matrix1[i][j];
 			int val2 = matrix2[i][j];
-			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val2- val1);
-			// BYTE res = (val1 > val2) ? val1- val2: 127+ (val1- val2);
-			int diff = (val1- val2);
-			bitset<32> x(diff);
-			// cout << x << endl;
-			
-			int res = 127+ ((diff>>1));
-			
-			bitset<8> y(res);
-			// cout << y << endl;
-		
-			outMatrix[i][j] = (BYTE)res;
+			long sign = (val1 > val2) ? 0:1;// 0 for positive and 1 for negative
+			int offset = j+i*8;
+			signs |= sign<<offset;
+			// bitset<64> x(signs);
+			// cout << x<< endl;
+			int diff = abs(val1- val2);
+					
+			outMatrix[i][j] = (BYTE)diff;
 			
 			
 			// outMatrix[i][j] = matrix1[i][j]- matrix2[i][j];
 		}
     }
+	return signs;
 }
 
-void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8])
+void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], long signs, int outMatrix[8][8])
 {
     for (int i = 0; i < 8; i++)
     {
 		for (int j = 0; j < 8; j++)
 		{
-			BYTE asd = matrix1[i][j];
-			bitset<8> x(1);
-			// cout << x << endl;
-			
-			bitset<8> y(asd);
-			// cout << y << endl;
-			
-			int16_t btn = -127;
-			int16_t asds = btn+asd;
-			int res =  asds<<1;
-			outMatrix[i][j] = res + matrix2[i][j];
-			outMatrix[i][j] = outMatrix[i][j]> 255? 255: outMatrix[i][j] < 0 ? 0: outMatrix[i][j];
+			BYTE res = matrix1[i][j];
+			int offset = j+i*8;
+			long one = 1;
+			long sign = (signs & ( one << offset )) >> offset;
+			sign =( sign == 0) ? 1 : -1;
+
+			outMatrix[i][j] = res*sign + matrix2[i][j];
+			// outMatrix[i][j] = outMatrix[i][j]> 255? 255: outMatrix[i][j] < 0 ? 0: outMatrix[i][j];
 		}
     }
 }
@@ -294,7 +321,7 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
 		{
 			Block16x16 frameBlock = get16x16Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
 			int sad = Compute_SAD(block.data, frameBlock.data);
-			if ((minValue < 0 ||sad <= minValue) && abs(block.x - frameBlock.x) < 16 && abs(block.y - frameBlock.y) < 16)
+			if ((minValue < 0 ||sad <= minValue)/* && abs(block.x - frameBlock.x) < 16 && abs(block.y - frameBlock.y) < 16*/)
 			{
 				minI = macroblock_Xpos;
 				minJ = macroblock_Ypos;
@@ -545,7 +572,7 @@ void Compute_idct(int inblock[8][8], int outblock[8][8])
 //Inverse quantization
 void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
-    int Quant_parameter = 2;
+    int Quant_parameter = 8;
     for (int i = 0; i < 8; i++)
     {
 	for (int j = 0; j < 8; j++)
@@ -706,6 +733,7 @@ void Encode_Video_File()
 				int codec[8][8];
 
 				Block refFrameBlock;
+				long signs;
 				if (!isIframe) //to mv or not to mv
 				{
 					refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mv.x*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  (mv.y*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+1]);
@@ -718,7 +746,17 @@ void Encode_Video_File()
 						}
 					}
 					myfile << '\n' ;
-					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);
+					// cout << "original block" << endl;
+					// printBlock(current_blocks[block_index].data);
+					
+					// cout << "ref block" << endl;					
+					// printBlock(refFrameBlock.data);
+					signs = Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);
+					// cout << "after computing diffrences" << endl;
+					// printBlock(current_blocks[block_index].data);
+
+					// bitset<64> x(signs);
+					// cout << x << endl;
 				}
 
 				//encode then decode then store this current block to be used next frame
@@ -730,16 +768,27 @@ void Encode_Video_File()
 				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
 				//Zigzag and run length
 				run_length_table = Compute_VLC(outBlock);
+				
+				if (!isIframe)
+					writeLongValues(signs, OutputFile);
 				//write coefficient into output file
 				writeEncodedMacroblock(run_length_table, OutputFile);
-
+				
 				// inverse Quantization
 				Compute_Inverse_quantization(outBlock, codec);
 				//IDCT 
 				Compute_idct(codec, codec);
 				
 				if (!isIframe) //to mv or not to mv
-					Compute_Additions(codec, refFrameBlock.data, codec);
+				{
+					// cout << "before computing additions" << endl;
+					// printBlock(codec);
+					
+					Compute_Additions(codec, refFrameBlock.data, signs, codec);
+					// cout << "after computing additions" << endl;
+					// printBlock(codec);
+					
+				}
 				
 				set8x8Block(codec, referenceFrameBuffer, frameWidths[block_index], blockOffsets[block_index]);   				
 
@@ -946,7 +995,8 @@ void Decode_Video_File()
 				}
 			}
 			myfile << '\n' ;
-			Compute_Additions(current_blocks[block_index], bestMatchBlock.data, current_blocks[block_index]);	
+			long signs = 0;
+			Compute_Additions(current_blocks[block_index], bestMatchBlock.data,signs, current_blocks[block_index]);	
 		}
 
 		char blockOffsets[6] = {
@@ -1007,7 +1057,7 @@ int main(int argc, char *argv[])
     cout << "File encoding completed, press a key to continue";
     
 
-    Decode_Video_File();
-    cout << "File decoding completed, press a key to exit";
-    cin.get();
+    // Decode_Video_File();
+    // cout << "File decoding completed, press a key to exit";
+    // cin.get();
 }

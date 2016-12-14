@@ -4,6 +4,6 @@
     "version": "0.1.0",
     "command": "clang++",
     "isShellCommand": true,
-    "args": ["encoder_main.cpp","-g","-o", "output/codec"],
+    "args": ["encoder_main.cpp","-g","-o","output/codec"],
     "showOutput": "always"
 }
