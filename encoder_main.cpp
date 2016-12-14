@@ -75,10 +75,27 @@ int zigzag_order[8][8] = {
 
 void writeLongValues(long signs,FILE *output_file)
 {
-    MyDataSize output_value;
-    int x = sizeof(MyDataSize);
+    int x = sizeof(long);
+	MyDataSize output_value;
+    
 	//writing the value of mv.x
-	// fwrite(&signs, sizeof(long), 1, output_file);
+	for (int8_t i = 0; i < 8; i++)
+	{
+		long res = 255;
+		int offset = i*8;
+		res = res << offset ;
+		// bitset<64> x(res);
+		// cout << x << endl;
+		// bitset<64> y(signs);
+		// cout << y << endl;
+		res = (signs & res)>> offset;
+		// bitset<64> z(res);
+		// cout << z << endl;
+		output_value = (MyDataSize)res;
+		
+		
+		fwrite(&output_value, sizeof(MyDataSize), 1, output_file);
+	}
 }
 
 void writeMotionVector(MV mv,FILE *output_file)
@@ -754,9 +771,9 @@ void Encode_Video_File()
 					signs = Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);
 					// cout << "after computing diffrences" << endl;
 					// printBlock(current_blocks[block_index].data);
-
-					// bitset<64> x(signs);
-					// cout << x << endl;
+					writeLongValues(signs, OutputFile);
+					bitset<64> x(signs);
+					cout << x << endl;
 				}
 
 				//encode then decode then store this current block to be used next frame
@@ -768,9 +785,7 @@ void Encode_Video_File()
 				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
 				//Zigzag and run length
 				run_length_table = Compute_VLC(outBlock);
-				
-				if (!isIframe)
-					writeLongValues(signs, OutputFile);
+
 				//write coefficient into output file
 				writeEncodedMacroblock(run_length_table, OutputFile);
 				
@@ -783,7 +798,8 @@ void Encode_Video_File()
 				{
 					// cout << "before computing additions" << endl;
 					// printBlock(codec);
-					
+					bitset<64> x(signs);
+					cout << x << endl;
 					Compute_Additions(codec, refFrameBlock.data, signs, codec);
 					// cout << "after computing additions" << endl;
 					// printBlock(codec);
@@ -967,46 +983,65 @@ void Decode_Video_File()
 		//macroblock loop: loop accross all blocks for a single macroblock
 	    for (int block_index = 0; block_index < 6; block_index++)
 	    {
-		//RLE sequence for each block
-		inputBlock.clear();
-		number_block_coefficients = fileBuffer[coefficient_index];
-		coefficient_index++; //advance index to point to next coefficient in the fileBuffer
-		// cout << "reading block # " << block_index << " number of coefficients is: " << number_block_coefficients << endl;
-		for (int j = 0; j < number_block_coefficients; j++)
-		{
-		    inputBlock.push_back(fileBuffer[coefficient_index + j]);
-		}
-		Compute_inverseZigzag(inputBlock, number_block_coefficients, current_blocks[block_index]);
-		Compute_Inverse_quantization(current_blocks[block_index], current_blocks[block_index]);
-		Compute_idct(current_blocks[block_index], current_blocks[block_index]);
-
-		// add residuls to the mv block 
-		Block bestMatchBlock; 
-		if(!isIframe)
-		{
-			// Block bestMatchBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
-			Block bestMatchBlock = 	get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+1]));			
-			myfile << (int)frame_num << ' ' << block_index << ' ' << (int)mvX << ' ' << (int)mvY << ' ' << ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]) << ' ' << (mvY*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+1] << '\n' ;
-			for (int8_t i = 0; i < 8; i++)
+			long signs = 0;
+			//load ths signs byte
+			if(!isIframe)
 			{
-				for (int8_t j = 0; j < 8; j++)
+				for (int8_t i = 0; i < 8; i++)
 				{
-					myfile << (int)bestMatchBlock.data[i][j] << ' ';
+					long res = (long)fileBuffer[coefficient_index++]&255;
+					// bitset<64> x(res);
+					// cout << x << endl;
+					res = res<<(8*i);
+					// bitset<64> z(res);
+					// cout << z << endl;
+					signs |=  res;
+					// bitset<64> y(signs);
+					// cout << y << endl;
+					// cout << endl;
 				}
 			}
-			myfile << '\n' ;
-			long signs = 0;
-			Compute_Additions(current_blocks[block_index], bestMatchBlock.data,signs, current_blocks[block_index]);	
-		}
+			//RLE sequence for each block
+			inputBlock.clear();
+			number_block_coefficients = fileBuffer[coefficient_index];
+			coefficient_index++; //advance index to point to next coefficient in the fileBuffer
+			// cout << "reading block # " << block_index << " number of coefficients is: " << number_block_coefficients << endl;
+			for (int j = 0; j < number_block_coefficients; j++)
+			{
+				inputBlock.push_back(fileBuffer[coefficient_index + j]);
+			}
+			Compute_inverseZigzag(inputBlock, number_block_coefficients, current_blocks[block_index]);
+			Compute_Inverse_quantization(current_blocks[block_index], current_blocks[block_index]);
+			Compute_idct(current_blocks[block_index], current_blocks[block_index]);
 
-		char blockOffsets[6] = {
-			0 + (macroblock_Xpos) + (macroblock_Ypos) * Y_frame_width,
-			0 + (macroblock_Xpos + 8) + (macroblock_Ypos) * Y_frame_width,
-			0 + (macroblock_Xpos) + (macroblock_Ypos + 8) * Y_frame_width,
-			0 + (macroblock_Xpos + 8) + (macroblock_Ypos + 8) * Y_frame_width,
-			y_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
-			y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
-		};
+			// add residuls to the mv block 
+			Block bestMatchBlock; 
+			if(!isIframe)
+			{
+				// Block bestMatchBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
+				Block bestMatchBlock = 	get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+1]));			
+				myfile << (int)frame_num << ' ' << block_index << ' ' << (int)mvX << ' ' << (int)mvY << ' ' << ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]) << ' ' << (mvY*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+1] << '\n' ;
+				for (int8_t i = 0; i < 8; i++)
+				{
+					for (int8_t j = 0; j < 8; j++)
+					{
+						myfile << (int)bestMatchBlock.data[i][j] << ' ';
+					}
+				}
+				myfile << '\n' ;
+				bitset<64> x(signs);
+				cout << x << endl;
+				Compute_Additions(current_blocks[block_index], bestMatchBlock.data,signs, current_blocks[block_index]);	
+			}
+
+			char blockOffsets[6] = {
+				0 + (macroblock_Xpos) + (macroblock_Ypos) * Y_frame_width,
+				0 + (macroblock_Xpos + 8) + (macroblock_Ypos) * Y_frame_width,
+				0 + (macroblock_Xpos) + (macroblock_Ypos + 8) * Y_frame_width,
+				0 + (macroblock_Xpos + 8) + (macroblock_Ypos + 8) * Y_frame_width,
+				y_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
+				y_buffer_size_bytes + u_buffer_size_bytes + (macroblock_Xpos / 2) + (macroblock_Ypos / 2) * Y_frame_width / 2,
+			};
 		
 		coefficient_index += number_block_coefficients;
 	    } //macroblock loop
@@ -1037,6 +1072,7 @@ void Decode_Video_File()
 	//store last decoded frame to be used for motion compansation in the next frame
 	copy(yuv_frameBuffer, yuv_frameBuffer + framesize, referenceFrameBuffer);
 	frame_num++;
+	cout << coefficient_index <<  " " << total_num_encoded_coefficients << " " << total_num_encoded_coefficients - coefficient_index << endl;
     }
 
     cout << "Decoding completed: total number of decoded frames is: " << frame_num << endl;
@@ -1057,7 +1093,7 @@ int main(int argc, char *argv[])
     cout << "File encoding completed, press a key to continue";
     
 
-    // Decode_Video_File();
-    // cout << "File decoding completed, press a key to exit";
+    Decode_Video_File();
+    cout << "File decoding completed, press a key to exit";
     // cin.get();
 }
