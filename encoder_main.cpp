@@ -20,6 +20,8 @@ typedef struct Block
 typedef struct Block16x16
 {
     BYTE data[16][16];
+	int x;
+	int y;
 } Block16x16;
 
 typedef struct MV
@@ -213,6 +215,9 @@ Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
 			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
 		}
     }
+	block.x = startI;
+	block.y = startJ;
+
     return block;
 }
 
@@ -288,7 +293,7 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
 		{
 			Block16x16 frameBlock = get16x16Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
 			int sad = Compute_SAD(block.data, frameBlock.data);
-			if (sad < minValue)
+			if (sad < minValue && abs(block.x - frameBlock.x) < 32 && abs(block.y - frameBlock.y) < 16)
 			{
 				minI = macroblock_Xpos;
 				minJ = macroblock_Ypos;
@@ -676,6 +681,9 @@ void Encode_Video_File()
 			if (!isIframe)//TODO calculate mvs
 			{
 				mv = Compute_MV(get16x16Block(frameBuffer,Y_frame_width,macroblock_Xpos, macroblock_Ypos), referenceFrameBuffer);
+				mv.x = macroblock_Xpos >> 4;
+				mv.y = macroblock_Ypos >> 4;
+
 				writeMotionVector(mv,OutputFile);
 			}
 
@@ -690,7 +698,7 @@ void Encode_Video_File()
 				if (!isIframe) //to mv or not to mv
 				{
 					refFrameBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mv.x*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mv.y*mvMultipliers[block_index])*8+  + blockOffsetsXY[block_index*2+1]));
-					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);				
+					Compute_Diffrences(current_blocks[block_index].data, refFrameBlock.data, current_blocks[block_index].data);
 				}
 
 				//encode then decode then store this current block to be used next frame
@@ -900,7 +908,7 @@ void Decode_Video_File()
 		if(!isIframe)
 		{
 			// Block bestMatchBlock = get8x8Block(frameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*16+macroblock_Xpos+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*16+macroblock_Ypos+  + blockOffsetsXY[block_index*2+1]));
-			Block bestMatchBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*8+  + blockOffsetsXY[block_index*2+1]));
+			Block bestMatchBlock = 	get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*8+  + blockOffsetsXY[block_index*2+1]));			
 			Compute_Additions(current_blocks[block_index], bestMatchBlock.data, current_blocks[block_index]);	
 		}
 
