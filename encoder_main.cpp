@@ -20,6 +20,8 @@ typedef struct Block
 typedef struct Block16x16
 {
     BYTE data[16][16];
+	int x;
+	int y;
 } Block16x16;
 
 typedef struct MV
@@ -145,7 +147,7 @@ vector<int> Compute_VLC(int block[8][8])
 //Output  8x8 Quantized block
 void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
-    int Quant_parameter = 8;
+    int Quant_parameter = 10;
     for (int i = 0; i < 8; i++)
     {
 	for (int j = 0; j < 8; j++)
@@ -213,6 +215,8 @@ Block16x16 get16x16Block(BYTE *frame, int frameWidth, int startI, int startJ)
 			block.data[i][j] = *(frame + (startI + i) + (startJ + j) * frameWidth);
 		}
     }
+	block.x = startI;
+	block.y = startJ;
     return block;
 }
 
@@ -270,35 +274,85 @@ void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8
 }
 
 
-// Compute_MV
-// computes motionVector
-// Input   8x8 block [Y/U/V]
-// Output  8x8 Iframe[YFrame,UFrame,VFrame]
-MV Compute_MV(Block16x16 block, BYTE *frame)
+MV LDSP(Block16x16 block, BYTE *frame, int isLDSP, int lPoints[9][2], int sPoints[5][2])
 {
-    int offset = 0;
-    int maxWidth = Y_frame_width;
-    int maxHeight = Y_frame_height;    
-    int minValue = 65535;
-    BYTE minI = 0, minJ = 0;
-
-    for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 16)
-    {
-		for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 16)
+	
+	int size;
+	int (*points)[2];
+	if(isLDSP){
+		points = lPoints;
+		size = 9;
+	}
+	else{
+		points = sPoints;
+		size = 5;
+	}
+	Block16x16 frameBlock;
+	int offsetX;
+	int offsetY;
+	int minValue = -1;
+    int minI = 0;
+	for (int8_t i = 0; i < size; i++)
+	{
+		offsetX = points[i][0]*16;
+		offsetY = points[i][1]*16;
+		if(block.x + offsetX >= 0 && block.x + offsetX + 16 < Y_frame_width && block.y + offsetY >= 0 && block.y + offsetY + 16 < Y_frame_height)
 		{
-			Block16x16 frameBlock = get16x16Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
+			frameBlock = get16x16Block(frame, Y_frame_width, block.x+offsetX, block.y+offsetY);
 			int sad = Compute_SAD(block.data, frameBlock.data);
-			if (sad < minValue)
+			if (minValue < 0 ||sad < minValue)
 			{
-				minI = macroblock_Xpos;
-				minJ = macroblock_Ypos;
+				minI = i;
 				minValue = sad;
 			}
 		}
-    }
+	}
+	block.x += points[minI][0]*16;
+	block.y += points[minI][1]*16;
+			
+	if (minI == 0)
+		if (isLDSP)
+			return LDSP(block, frame, 0, lPoints, sPoints);//resturn SDSP
+		else{
+			MV mv = {(MyDataSize)(block.x/16), (MyDataSize)(block.y/16)};
+    		return mv;
+		}
+	else 
+		if (isLDSP)
+			return LDSP(block, frame, isLDSP, lPoints, sPoints);
+		else{
+			MV mv = {(MyDataSize)(block.x/16), (MyDataSize)(block.y/16)};
+    		return mv;
+		}
+}
+MV Compute_MV(Block16x16 block, BYTE *frame)
+{
+	int lPoints[9][2] = {{0,0},{2,0},{0,2},{-2,0},{0,-2},{1,1},{-1,-1},{-1,1},{1,-1}};
+	int sPoints[5][2] = {{0,0},{1,0},{0,1},{-1,0},{0,-1}};
+	return LDSP(block, frame, 1, lPoints, sPoints);
+    // int offset = 0;
+    // int maxWidth = Y_frame_width;
+    // int maxHeight = Y_frame_height;    
+    // int minValue = -1;
+    // int minI = 0, minJ = 0;
 
-    MV mv = {(MyDataSize)(minI/16), (MyDataSize)(minJ/16)};
-    return mv;
+    // for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 16)
+    // {
+	// 	for (int macroblock_Xpos = 0; macroblock_Xpos < maxWidth; macroblock_Xpos += 16)
+	// 	{
+	// 		Block16x16 frameBlock = get16x16Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
+	// 		int sad = Compute_SAD(block.data, frameBlock.data);
+	// 		if ((minValue < 0 ||sad <= minValue))
+	// 		{
+	// 			minI = macroblock_Xpos;
+	// 			minJ = macroblock_Ypos;
+	// 			minValue = sad;
+	// 		}
+	// 	}
+    // }
+
+    // MV mv = {(MyDataSize)(minI/16), (MyDataSize)(minJ/16)};
+    // return mv;
 }
 
 //DCT on 8x8 block
@@ -539,7 +593,7 @@ void Compute_idct(int inblock[8][8], int outblock[8][8])
 //Inverse quantization
 void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
-    int Quant_parameter = 8;
+    int Quant_parameter = 10;
     for (int i = 0; i < 8; i++)
     {
 	for (int j = 0; j < 8; j++)
@@ -550,7 +604,7 @@ void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 }
 void Encode_Video_File()
 {
-    const char *inputFileName = "coastguard_qcif.yuv";
+    const char *inputFileName = "miss-america_qcif.yuv";
     BYTE *frameBuffer; // Pointer to current frame buffer
     //BYTE *outputEncodedStream;  //pointer to output stream buffer
     FILE *inputFileptr = NULL; // File pointer
