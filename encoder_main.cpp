@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <bitset>
 
-typedef __int8_t MyDataSize;
+typedef __int16_t MyDataSize;
 using namespace std;
 typedef unsigned char BYTE;
 typedef struct Block
@@ -84,6 +84,14 @@ void writeMotionVector(MV mv,FILE *output_file)
 	//writing the value of mv.y
 	fwrite(&output_value, sizeof(MyDataSize), 1, output_file);
 }
+void writeQuantization(MyDataSize Quant_parameter,FILE *output_file)
+{
+    MyDataSize output_value;
+    
+	output_value = (MyDataSize)Quant_parameter;
+	//writing the value of mv.x
+	fwrite(&output_value, sizeof(MyDataSize), 1, output_file);
+}
 
 void writeEncodedMacroblock(vector<int> rle, FILE *output_file)
 {
@@ -145,15 +153,14 @@ vector<int> Compute_VLC(int block[8][8])
 //Use a fixed quantization of 8
 //Input   8x8 DCT-Transformed block
 //Output  8x8 Quantized block
-void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
+void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8], int Quant_parameter)
 {
-    int Quant_parameter = 10;
     for (int i = 0; i < 8; i++)
     {
-	for (int j = 0; j < 8; j++)
-	{
-	    outMatrix[i][j] = inMatrix[i][j] / Quant_parameter;
-	}
+		for (int j = 0; j < 8; j++)
+		{
+			outMatrix[i][j] = inMatrix[i][j] / Quant_parameter;
+		}
     }
 }
 
@@ -591,15 +598,14 @@ void Compute_idct(int inblock[8][8], int outblock[8][8])
 }
 
 //Inverse quantization
-void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
-{
-    int Quant_parameter = 10;
+void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8], int Quant_parameter)
+{ 
     for (int i = 0; i < 8; i++)
     {
-	for (int j = 0; j < 8; j++)
-	{
-	    outMatrix[i][j] = inMatrix[i][j] * Quant_parameter;
-	}
+		for (int j = 0; j < 8; j++)
+		{
+			outMatrix[i][j] = inMatrix[i][j] * Quant_parameter;
+		}
     }
 }
 void Encode_Video_File()
@@ -677,16 +683,18 @@ void Encode_Video_File()
 
     int isIframe;
     //start encoding loop
+	int Quant_parameter = 32;
     for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
 	{
 		isIframe = (frame_num%numOfPFrames== 0) ? 1: 0;
-		
+
+		writeQuantization(Quant_parameter, OutputFile);
+
 		cout << "Encoding frame number: " << frame_num << endl;
 		//read a frame from input file into the frameBuffer
 		fread(frameBuffer, framesize, 1, inputFileptr);
 
 		// std::copy(std::begin(frameBuffer), std::end(frameBuffer), std::begin(lastIFrameBuffer));
-
 		//loop accross blocks
 		for (macroblock_Ypos = 0; macroblock_Ypos < Y_frame_height; macroblock_Ypos += 16)
 			for (macroblock_Xpos = 0; macroblock_Xpos < Y_frame_width; macroblock_Xpos += 16)
@@ -751,7 +759,7 @@ void Encode_Video_File()
 				//DCT
 				Compute_DCT(current_blocks[block_index].data, outBlock);
 				//Quantization
-				Compute_quantization(outBlock, outBlock);
+				Compute_quantization(outBlock, outBlock,Quant_parameter);
 				//Zigzag and run length
 				run_length_table = Compute_VLC(outBlock);
 				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
@@ -759,7 +767,7 @@ void Encode_Video_File()
 				writeEncodedMacroblock(run_length_table, OutputFile);
 
 				// inverse Quantization
-				Compute_Inverse_quantization(outBlock, codec);
+				Compute_Inverse_quantization(outBlock, codec,Quant_parameter);
 				//IDCT 
 				Compute_idct(codec, codec);
 				
@@ -914,10 +922,11 @@ void Decode_Video_File()
 	
 
     int num_macroblock_per_row = Y_frame_width / 16;
-    while (coefficient_index < total_num_encoded_coefficients) //loop accross the whole input file
+    int Quant_parameter = 0;
+	while (coefficient_index < total_num_encoded_coefficients) //loop accross the whole input file
     {
 		isIframe = (frame_num%numOfPFrames== 0) ? 1: 0;
-		
+		Quant_parameter = (int)fileBuffer[coefficient_index++];
 	cout << "decoding frame number " << frame_num << endl;
 	//frame loop: loop accross macroblocks in the whole QCIF frame
 	for (macroblock_number = 0; macroblock_number < number_macroblocks_per_frame; macroblock_number++)
@@ -946,7 +955,7 @@ void Decode_Video_File()
 		    inputBlock.push_back(fileBuffer[coefficient_index + j]);
 		}
 		Compute_inverseZigzag(inputBlock, number_block_coefficients, current_blocks[block_index]);
-		Compute_Inverse_quantization(current_blocks[block_index], current_blocks[block_index]);
+		Compute_Inverse_quantization(current_blocks[block_index], current_blocks[block_index],Quant_parameter);
 		Compute_idct(current_blocks[block_index], current_blocks[block_index]);
 
 		// add residuls to the mv block 
