@@ -58,7 +58,7 @@ int y_buffer_size_bytes;
 int u_buffer_size_bytes;
 int v_buffer_size_bytes;
 int framesize;
-int numOfPFrames = 300;
+int numOfPFrames = 870;
 
 int zigzag_order[8][8] = {
     {0, 1, 5, 6, 14, 15, 27, 28},
@@ -330,7 +330,7 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
     int maxWidth = Y_frame_width;
     int maxHeight = Y_frame_height;    
     int minValue = -1;
-    BYTE minI = 0, minJ = 0;
+    int minI = 0, minJ = 0;
 
     for (int macroblock_Ypos = 0; macroblock_Ypos < maxHeight; macroblock_Ypos += 16)
     {
@@ -338,7 +338,7 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
 		{
 			Block16x16 frameBlock = get16x16Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
 			int sad = Compute_SAD(block.data, frameBlock.data);
-			if ((minValue < 0 ||sad <= minValue)/* && abs(block.x - frameBlock.x) < 16 && abs(block.y - frameBlock.y) < 16*/)
+			if ((minValue < 0 ||sad <= minValue) && abs(block.x - frameBlock.x) < 32 && abs(block.y - frameBlock.y) < 32)
 			{
 				minI = macroblock_Xpos;
 				minJ = macroblock_Ypos;
@@ -600,7 +600,7 @@ void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 }
 void Encode_Video_File()
 {
-    const char *inputFileName = "coastguard_qcif.yuv";
+    const char *inputFileName = "miss-america_qcif.yuv";
     BYTE *frameBuffer; // Pointer to current frame buffer
     //BYTE *outputEncodedStream;  //pointer to output stream buffer
     FILE *inputFileptr = NULL; // File pointer
@@ -1029,8 +1029,8 @@ void Decode_Video_File()
 					}
 				}
 				myfile << '\n' ;
-				bitset<64> x(signs);
-				cout << x << endl;
+				// bitset<64> x(signs);
+				// cout << x << endl;
 				Compute_Additions(current_blocks[block_index], bestMatchBlock.data,signs, current_blocks[block_index]);	
 			}
 
