@@ -8,6 +8,8 @@
 #include <vector>
 #include <cstdlib>
 #include <bitset>
+#include <math.h>
+
 
 typedef __int16_t MyDataSize;
 using namespace std;
@@ -610,7 +612,7 @@ void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8], int Q
 }
 void Encode_Video_File()
 {
-    const char *inputFileName = "miss-america_qcif.yuv";
+    const char *inputFileName = "coastguard_qcif.yuv";
     BYTE *frameBuffer; // Pointer to current frame buffer
     //BYTE *outputEncodedStream;  //pointer to output stream buffer
     FILE *inputFileptr = NULL; // File pointer
@@ -683,14 +685,16 @@ void Encode_Video_File()
 
     int isIframe;
     //start encoding loop
-	int Quant_parameter = 32;
+	int Quant_parameter = 2;
+	int frameSizeInBytes;
+	int expectedFrameSizeInBytes = (int)((10*1024*1024)/(150)); //1MB
     for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
 	{
 		isIframe = (frame_num%numOfPFrames== 0) ? 1: 0;
-
+		frameSizeInBytes = 0;
 		writeQuantization(Quant_parameter, OutputFile);
 
-		cout << "Encoding frame number: " << frame_num << endl;
+		cout << "Encoding frame number: " << frame_num << "Quant_parameter" << Quant_parameter << endl;
 		//read a frame from input file into the frameBuffer
 		fread(frameBuffer, framesize, 1, inputFileptr);
 
@@ -762,10 +766,10 @@ void Encode_Video_File()
 				Compute_quantization(outBlock, outBlock,Quant_parameter);
 				//Zigzag and run length
 				run_length_table = Compute_VLC(outBlock);
-				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
+				// cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
 				//write coefficient into output file
 				writeEncodedMacroblock(run_length_table, OutputFile);
-
+				frameSizeInBytes += run_length_table.size();
 				// inverse Quantization
 				Compute_Inverse_quantization(outBlock, codec,Quant_parameter);
 				//IDCT 
@@ -783,8 +787,12 @@ void Encode_Video_File()
 			}
 
 			} //end macroblock loop
-
 			fwrite(referenceFrameBuffer, framesize, 1, testFile);
+			if(!isIframe)
+			{
+				if(abs(frameSizeInBytes - expectedFrameSizeInBytes) > 64)
+				Quant_parameter = 1+(Quant_parameter*frameSizeInBytes/expectedFrameSizeInBytes);
+			}
     } //end frame loop
 
     //free allocated memory
@@ -966,10 +974,6 @@ void Decode_Video_File()
 			Block bestMatchBlock = get8x8Block(refFrameOffsets[block_index], frameWidths[block_index] ,  ((mvX*mvMultipliers[block_index])*8+ blockOffsetsXY[block_index*2+0]),  ((mvY*mvMultipliers[block_index])*8+  + blockOffsetsXY[block_index*2+1]));
 			Compute_Additions(current_blocks[block_index], bestMatchBlock.data, current_blocks[block_index]);	
 		}
-
-
-
-
 
 		char blockOffsets[6] = {
 			0 + (macroblock_Xpos) + (macroblock_Ypos) * Y_frame_width,
