@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <bitset>
 
-typedef __int16_t MyDataSize;
+typedef __int8_t MyDataSize;
 using namespace std;
 typedef unsigned char BYTE;
 typedef struct Block
