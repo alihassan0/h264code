@@ -173,7 +173,7 @@ vector<int> Compute_VLC(int block[8][8])
 //Output  8x8 Quantized block
 void Compute_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
-    int Quant_parameter = 8;
+    int Quant_parameter = 30;
 
     for (int i = 0; i < 8; i++)
     {
@@ -346,11 +346,11 @@ MV LDSP(Block16x16 block, BYTE *frame, int isLDSP, int lPoints[9][2], int sPoint
 	{
 		offsetX = points[i][0]*16;
 		offsetY = points[i][1]*16;
-		if(frameBlock.x + offsetX + 16 < Y_frame_width && frameBlock.y + offsetY + 16 < Y_frame_height)
+		if(block.x + offsetX >= 0 && block.x + offsetX + 16 < Y_frame_width && block.y + offsetY >= 0 && block.y + offsetY + 16 < Y_frame_height)
 		{
 			frameBlock = get16x16Block(frame, Y_frame_width, block.x+offsetX, block.y+offsetY);
 			int sad = Compute_SAD(block.data, frameBlock.data);
-			if (minValue < 0 ||sad <= minValue)
+			if (minValue < 0 ||sad < minValue)
 			{
 				minI = i;
 				minValue = sad;
@@ -643,7 +643,7 @@ void Compute_idct(int inblock[8][8], int outblock[8][8])
 //Inverse quantization
 void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 {
-    int Quant_parameter = 8;
+    int Quant_parameter = 30;
     for (int i = 0; i < 8; i++)
     {
 	for (int j = 0; j < 8; j++)
@@ -654,7 +654,9 @@ void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 }
 void Encode_Video_File()
 {
-    const char *inputFileName = "miss-america_qcif.yuv";
+	// coastguard_qcif
+	//miss-america_qcif
+    const char *inputFileName = "grandma_qcif.yuv";
     BYTE *frameBuffer; // Pointer to current frame buffer
     //BYTE *outputEncodedStream;  //pointer to output stream buffer
     FILE *inputFileptr = NULL; // File pointer
@@ -790,7 +792,9 @@ void Encode_Video_File()
 				// if(mv.y > 0 && mv.y < 9-3)					
 				// mv.y = -1+(rand() % 2 )+(macroblock_Ypos >> 4);
 				 
-
+// frame : 71 macrobBlock [ 128,0] , blockType : 5 coeffecients count: 14 mvX 9mvY 1
+// cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << " mvX " << (int)mv.x << "mvY " << (int)mv.y << endl;
+				
 				writeMotionVector(mv,OutputFile);
 				// myfile << (int)mv.x << ' ' << (int)mv.y<< '\n' ;
 	
@@ -836,7 +840,7 @@ void Encode_Video_File()
 				//Quantization
 				Compute_quantization(outBlock, outBlock);
 				
-				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
+				cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << " mvX " << (int)mv.x << "mvY " << (int)mv.y << endl;
 				//Zigzag and run length
 				run_length_table = Compute_VLC(outBlock);
 
