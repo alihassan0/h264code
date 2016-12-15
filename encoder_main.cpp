@@ -294,7 +294,7 @@ MV Compute_MV(Block16x16 block, BYTE *frame)
 		{
 			Block16x16 frameBlock = get16x16Block(frame, maxWidth, macroblock_Xpos, macroblock_Ypos);
 			int sad = Compute_SAD(block.data, frameBlock.data);
-			if ((minValue < 0 ||sad <= minValue) && abs(block.x - frameBlock.x) < 16 && abs(block.y - frameBlock.y) < 16)
+			if ((minValue < 0 ||sad <= minValue))
 			{
 				minI = macroblock_Xpos;
 				minJ = macroblock_Ypos;
@@ -556,7 +556,7 @@ void Compute_Inverse_quantization(int inMatrix[8][8], int outMatrix[8][8])
 }
 void Encode_Video_File()
 {
-    const char *inputFileName = "coastguard_qcif.yuv";
+    const char *inputFileName = "miss-america_qcif.yuv";
     BYTE *frameBuffer; // Pointer to current frame buffer
     //BYTE *outputEncodedStream;  //pointer to output stream buffer
     FILE *inputFileptr = NULL; // File pointer
