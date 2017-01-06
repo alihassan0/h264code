@@ -285,7 +285,6 @@ void Compute_Additions(int matrix1[8][8], BYTE matrix2[8][8], int outMatrix[8][8
 
 MV LDSP(Block16x16 block, BYTE *frame, int isLDSP, int lPoints[9][2], int sPoints[5][2])
 {
-	
 	int size;
 	int (*points)[2];
 	if(isLDSP){
@@ -685,7 +684,7 @@ void Encode_Video_File()
 
     int isIframe;
     //start encoding loop
-	int Quant_parameter = 2;
+	int Quant_parameter = 16;
 	int frameSizeInBytes;
 	int expectedFrameSizeInBytes = (int)((10*1024*1024)/(150)); //1MB
     for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
@@ -769,7 +768,7 @@ void Encode_Video_File()
 				// cout << "frame : " << frame_num << " macrobBlock [ "<< macroblock_Xpos<< ","<< macroblock_Ypos<< "] , blockType : "<< block_index << " coeffecients count: " << run_length_table.size() << endl;
 				//write coefficient into output file
 				writeEncodedMacroblock(run_length_table, OutputFile);
-				frameSizeInBytes += run_length_table.size();
+				frameSizeInBytes += run_length_table.size()*2;
 				// inverse Quantization
 				Compute_Inverse_quantization(outBlock, codec,Quant_parameter);
 				//IDCT 
@@ -778,7 +777,7 @@ void Encode_Video_File()
 				if (!isIframe) //to mv or not to mv
 					Compute_Additions(codec, refFrameBlock.data, codec);
 				
-				set8x8Block(codec, referenceFrameBuffer, frameWidths[block_index], blockOffsets[block_index]);   				
+				set8x8Block(codec, frameBuffer, frameWidths[block_index], blockOffsets[block_index]);   				
 
 				// encode the diffrence if it's an Iframe				
 				
@@ -793,6 +792,8 @@ void Encode_Video_File()
 				if(abs(frameSizeInBytes - expectedFrameSizeInBytes) > 64)
 				Quant_parameter = 1+(Quant_parameter*frameSizeInBytes/expectedFrameSizeInBytes);
 			}
+			copy(frameBuffer, frameBuffer + framesize, referenceFrameBuffer);
+	
     } //end frame loop
 
     //free allocated memory
