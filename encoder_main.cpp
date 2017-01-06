@@ -38,7 +38,7 @@ typedef struct MV
 //QCIF frame resolution
 #define Y_frame_width 176
 #define Y_frame_height 144
-#define SIZE_IN_MB 10
+#define SIZE_IN_MB 3
 
 //function to get the size of a file
 //input file: file pointer
@@ -669,14 +669,14 @@ void Encode_Video_File()
     //start encoding loop
 	int Quant_parameter = 16;
 	int frameSizeInBytes;
-	int expectedFrameSizeInBytes = (int)((SIZE_IN_MB*1024*1024)/(150)); 
+	int expectedFrameSizeInBytes = (int)((SIZE_IN_MB*1024*1024)/(300)); 
     for (int frame_num = 0; frame_num < total_number_of_frames; frame_num++)
 	{
 		isIframe = (frame_num%numOfPFrames== 0) ? 1: 0;
 		frameSizeInBytes = 0;
 		writeQuantization(Quant_parameter, OutputFile);
 
-		cout << "Encoding frame number: " << frame_num  << endl;
+		cout << "Encoding frame number: " << frame_num << " , quantization parameter : " << Quant_parameter << endl;
 		//read a frame from input file into the frameBuffer
 		fread(frameBuffer, framesize, 1, inputFileptr);
 
